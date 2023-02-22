@@ -49,12 +49,12 @@ class FindBlockTrotterEvolution(TransformationPass):
         for pauli, coeff in zip(node.op.operator.paulis, node.op.operator.coeffs):
             required_paulis[self._pauli_to_edge(pauli)][pauli] = coeff
         for edge, pauli_dict in required_paulis.items():         
-            params = np.zeros(len(self._block_ops)) # prolly change obj type for Paramters
-            for pauli, coeffs in pauli_dict.items():
+            params = np.zeros(len(self._block_ops), dtype=object)
+            for pauli, coeff in pauli_dict.items():
                 qubits = [dag.qubits[edge[0]], dag.qubits[edge[1]]]
                 for pidx, pstr in enumerate(self._block_ops):
                     if pauli.to_label().replace("I", "") == pstr:
-                        params[pidx] = node.op.time * np.real(coeff)
+                        params[pidx] = node.op.time * coeff
             block_op = Instruction('xx+yy+zz', num_qubits=2, num_clbits=0, params=params)
             sub_dag.apply_operation_back(block_op, qubits)
                 
@@ -103,20 +103,10 @@ class LayerBlockOperators(TransformationPass):
     def _find_consecutive_block_nodes(self, dag, node0):
         for node1 in dag.successors(node0):
             if isinstance(node1, DAGOpNode):
+                self._find_consecutive_block_nodes(dag, node1)
                 if node1.op.name == self._block_str:
                     if node0.op.name == self._block_str:
                         self._layer_block_op_nodes(dag, node0, node1)
-                    for node2 in dag.successors(node1):
-                        if isinstance(node2, DAGOpNode):
-                            if node2.op.name == self._block_str:
-                                self._layer_block_op_nodes(dag, node1, node2)
-                            else:
-                                _find_consecutive_block_nodes(dag, node2)
-
-                else:
-                    _find_consecutive_block_nodes(dag, node1)
-
-        return
     
     def _get_entanglement_map(self) -> List[List[int]]:
         
@@ -143,10 +133,8 @@ class LayerBlockOperators(TransformationPass):
 
     @staticmethod
     def _get_layer_index(pair, ent_maps):
-    #     print(f'looking for pair {pair}')
         for lidx, ent_map in enumerate(ent_maps):
             if pair in ent_map or list(reversed(pair)) in ent_map:
-    #             print(f'found in layer {lidx}')
                 return lidx
 
     @staticmethod
@@ -171,19 +159,13 @@ class LayerBlockOperators(TransformationPass):
         lidx1 = self._get_layer_index(pair1, self._ent_map)
         
         if lidx0 < lidx1:
-            print(f'{node0.op} in right place')
             return dag
         elif lidx1 < lidx0:
-            print(f'Swapping {pair0} and {pair1}')
             mini_dag = DAGCircuit()
             qr = QuantumRegister(3, 'q_{md}')
             mini_dag.add_qreg(qr)
 
             (q0, q1, q2) = self._get_ordered_qreg(pair0, pair1)
-            
-#             import pdb; pdb.set_trace()
-#             zz_angle0 = node0.op.params[0]
-#             zz_angle1 = node1.op.params[0]
 
             qargs = list(set(node0.qargs+node1.qargs)) # should share exactly one qubit
             qreg = qargs[0].register  
@@ -194,7 +176,37 @@ class LayerBlockOperators(TransformationPass):
             fake_op = Instruction("commutings blocks", num_qubits=3, num_clbits=0, params=[])
             new_node = dag.replace_block_with_op([node0, node1], fake_op, wire_pos_map={qargs[0]: q0, qargs[1]: q1, qargs[2]: q2})
             dag.substitute_node_with_dag(new_node, mini_dag, wires={qr[0]: qreg[q0], qr[1]: qreg[q1], qr[2]: qreg[q2]})
-            
-            return dag
 
 
+class ExpandBlockOperators(TransformationPass):
+    def __init__(
+        self, 
+        block_ops: List[str] = None,
+    ):
+        super().__init__()
+        self._block_ops = block_ops
+        self._block_str = "+".join(block_ops).lower()
+
+    def run(self, dag: DAGCircuit):
+        for node in dag.op_nodes(): 
+            if node.op.name == self._block_str:
+                dag = self._expand_block_ops(dag, node)
+    
+        return dag
+    
+    def _expand_block_ops(self, dag, node):
+        mini_dag = DAGCircuit()
+        qr = QuantumRegister(2)
+        mini_dag.add_qreg(qr)
+
+        for oidx, op in enumerate(self._block_ops):
+            if op == 'XX':
+                mini_dag.apply_operation_back(RXXGate(node.op.params[oidx]), [qr[0], qr[1]])
+            elif op == 'YY':
+                mini_dag.apply_operation_back(RYYGate(node.op.params[oidx]), [qr[0], qr[1]])
+            elif op == 'ZZ':
+                mini_dag.apply_operation_back(RZZGate(node.op.params[oidx]), [qr[0], qr[1]])
+
+        dag.substitute_node_with_dag(node, mini_dag)
+
+        return dag

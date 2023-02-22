@@ -21,13 +21,12 @@ from qiskit.opflow import PauliSumOp
 from qiskit.providers.fake_provider import FakeKolkata
 from qiskit.transpiler import PassManager
 
-from qiskit_research.utils.circuit_layering import FindBlockTrotterEvolution, LayerBlockOperators
+from qiskit_research.utils.circuit_layering import ExpandBlockOperators, FindBlockTrotterEvolution, LayerBlockOperators
 
 class TestLayeredPauliGates(unittest.TestCase):
     
-    num_qubits = 7 
-    op = PauliSumOp.from_list([("I"*idx + pair + "I"*(7-idx-2), 1) 
-                            for idx in range(num_qubits-2) for pair in ["XX", "YY", "ZZ"]])
+    num_qubits = 9
+    op = PauliSumOp.from_list([("I"*idx + pair + "I"*(9-idx-2), 1) for idx in range(num_qubits-2) for pair in ["XX", "YY", "ZZ"]])
     qc = QuantumCircuit(num_qubits)
     qc.append(PauliEvolutionGate(op, 1), range(num_qubits))
 
@@ -38,6 +37,8 @@ class TestLayeredPauliGates(unittest.TestCase):
     coupling_map = backend.configuration().coupling_map
     qc_l = transpile(qc_fbte, coupling_map=coupling_map, seed_transpiler=12345)
 
-    qc_layered = PassManager([LayerBlockOperators(block_ops=block_ops, coupling_map=coupling_map)]).run(qc_l)
-    qc_layered.draw()
+    qc_layered = PassManager([
+        LayerBlockOperators(block_ops=block_ops, coupling_map=coupling_map),
+        ExpandBlockOperators(block_ops=block_ops)
+        ]).run(qc_l)
     import pdb; pdb.set_trace()
