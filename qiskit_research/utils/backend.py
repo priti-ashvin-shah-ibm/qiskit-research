@@ -13,11 +13,11 @@
 """Utilities for dealing with backends and their coupling maps."""
 
 
-from typing import Optional
-
 from qiskit import BasicAer
 from qiskit.providers import Backend, Provider
+from qiskit.providers.models.backendconfiguration import PulseBackendConfiguration
 from qiskit_aer import AerSimulator
+from typing import Optional, List
 
 
 def get_backend(
@@ -32,10 +32,15 @@ def get_backend(
         return BasicAer.get_backend("statevector_simulator")
     raise ValueError("The given name does not match any supported backends.")
 
-def get_coupling_map_from_init_layout(coupling_map, init_layout):
+
+def get_coupling_map_from_init_layout(init_layout: PulseBackendConfiguration) -> list:
+    """Obtain the coupling map of a backend of a provider.
+
+    Returns:
+        list: This is a list of a list.  Where each sub-list is a connection between two qubits.
     """
-    TODO: write this function
-    """
+    return init_layout.coupling_map
+
 
 def get_outward_coupling_map(coupling_map, ent_map, start_qubits):
     """
@@ -73,11 +78,18 @@ def get_layered_ansatz_coupling_map(coupling_map):
     for pair in ordered_cm:
         if ent_map == []:
             ent_map.append([pair])
-        elif all([any([pair[0] in epair or pair[1] in epair for epair in emap]) for emap in ent_map]):
+        elif all(
+            [
+                any([pair[0] in epair or pair[1] in epair for epair in emap])
+                for emap in ent_map
+            ]
+        ):
             ent_map.append([pair])
         else:
             for emap in ent_map:
-                if all([pair[0] not in epair and pair[1] not in epair for epair in emap]):
+                if all(
+                    [pair[0] not in epair and pair[1] not in epair for epair in emap]
+                ):
                     emap.append(pair)
                     break
 
