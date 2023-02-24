@@ -11,15 +11,12 @@
 # that they have been altered from the originals.
 
 """Utilities for dealing with backends and their coupling maps."""
-
+import warnings
 from typing import Optional
 from collections import defaultdict
 from qiskit import BasicAer
 from qiskit.providers import Backend, Provider
-from qiskit.providers.models.backendconfiguration import PulseBackendConfiguration
 from qiskit_aer import AerSimulator
-
-import warnings
 
 
 def get_backend(
@@ -35,13 +32,76 @@ def get_backend(
     raise ValueError("The given name does not match any supported backends.")
 
 
-def get_coupling_map_from_init_layout(init_layout: PulseBackendConfiguration) -> list:
-    """Obtain the coupling map of a backend of a provider.
+def get_entangling_map_from_init_layout(
+    coupling_map: list, init_layout: set
+) -> list[list]:
+    """Give a sub-set of desired qubits denoted in init_layout, which is limited by qubits
+    within the coupling map, generate a new list of entangling qubits.  The entangling qubits
+    is a subset of availabe qubits from the coupling map.
+
+    Args:
+        coupling_map (list): From provider's backend.
+        init_layout (set): Qubit_ids which are desired and a subset of available
+                            qubits from coupling map.
+
+    Raises:
+        ValueError: User requested a qubit with does not exist in the coupling map.
 
     Returns:
-        list: This is a list of a list.  Where each sub-list is a connection between two qubits.
+        list[list]: Same format at coupling map, but contains only qubits which
+                    are desired from init_layout.
     """
-    return init_layout.coupling_map
+    # Working on this.
+    answer, coupling_set = confirm_init_layout_qubits_in_coupling_map(
+        coupling_map, init_layout
+    )
+    if not answer:
+        error_string = "A request to use qubit which does not exist in backend."
+        raise ValueError(error_string)
+
+    the_diff = coupling_set.symmetric_difference(init_layout)
+    if the_diff:
+        coupling_map_dict = convert_list_map_to_dict(coupling_map)
+        for qubit_id in the_diff:
+            coupling_map_dict.pop(qubit_id)
+
+        # Rebuild the reduced list map for qubits that user denoted in init_layout.
+        entangling_map = []
+        for first_qubit, connection in coupling_map_dict.items():
+            for second_qubit in connection:
+                if second_qubit in init_layout:
+                    entangling_map.append([first_qubit, second_qubit])
+        return entangling_map
+    else:
+        return coupling_map
+
+
+def confirm_init_layout_qubits_in_coupling_map(
+    coupling_map: list[list], init_layout: set
+) -> tuple[bool, set]:
+    """Confirm that init_layout has qubits that are equal or less than the coupling map.
+
+    Args:
+        coupling_map (list[list]): From backend determined by provider.
+        init_layout (set): Determined by user, typically the best qubits on a given backend.
+
+    Returns:
+        bool: If init_layout has qubits within coupling_map.
+        set: The qubits from coupling map.
+    """
+    cm_set = set()
+    il_set = set(init_layout)
+    for item in coupling_map:
+        subset = set(item)
+        cm_set.update(subset)
+
+    a_subset = il_set.issubset(cm_set)
+    if not a_subset:
+        message = (
+            f"The qubits in init_layout: {il_set} are not in coupling_map: {cm_set}"
+        )
+        warnings.warn(message)
+    return a_subset, cm_set
 
 
 def convert_list_map_to_dict(list_map: list) -> defaultdict:
