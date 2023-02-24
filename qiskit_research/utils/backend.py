@@ -12,12 +12,14 @@
 
 """Utilities for dealing with backends and their coupling maps."""
 
-
+from typing import Optional
+from collections import defaultdict
 from qiskit import BasicAer
 from qiskit.providers import Backend, Provider
 from qiskit.providers.models.backendconfiguration import PulseBackendConfiguration
 from qiskit_aer import AerSimulator
-from typing import Optional, List
+
+import warnings
 
 
 def get_backend(
@@ -40,6 +42,39 @@ def get_coupling_map_from_init_layout(init_layout: PulseBackendConfiguration) ->
         list: This is a list of a list.  Where each sub-list is a connection between two qubits.
     """
     return init_layout.coupling_map
+
+
+def convert_list_map_to_dict(list_map: list) -> defaultdict:
+    """Reorganize the coupling map since qubits may not be symmetric.
+    Args:
+        list_map (list): The map obtained from the backend.
+
+    Raises:
+        ValueError: Each sublist-pair within coupling_map should be a start and end qubit integers.
+
+    Returns:
+        defaultdict: Each key is a start qubit, the value hold a list of qubits that can be
+                    be second qubit.  This accounts for if the qubits are symmetric.
+    """
+
+    if list_map:  # If there is something inside the list_map.
+        map_dict = defaultdict(list)
+    else:
+        warnings.warn("The list_map is empty. No dict will be returned.")
+        return None
+
+    for pair in list_map:
+        len_sublist = len(pair)
+        if len_sublist == 2:
+            first_qubit, second_qubit = pair
+            map_dict[first_qubit].append(second_qubit)
+        else:
+            error_string = (
+                f"The length of each sublist within list map should contain "
+                f"only 2 integers. You have {len_sublist},  for pair: {pair}"
+            )
+            raise ValueError(error_string)
+    return map_dict
 
 
 def get_outward_coupling_map(coupling_map, ent_map, start_qubits):
