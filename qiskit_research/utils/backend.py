@@ -13,7 +13,7 @@
 """Utilities for dealing with backends and their coupling maps."""
 import warnings
 from typing import Optional
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from qiskit import BasicAer
 from qiskit.providers import Backend, Provider
 from qiskit_aer import AerSimulator
@@ -61,6 +61,7 @@ def get_entangling_map_from_init_layout(
 
     the_diff = coupling_set.symmetric_difference(init_layout)
     if the_diff:
+        # The coupling_map_dict is an OrderedDict SO the keys are already sorted.
         coupling_map_dict = convert_list_map_to_dict(coupling_map)
         for qubit_id in the_diff:
             coupling_map_dict.pop(qubit_id)
@@ -104,8 +105,11 @@ def confirm_init_layout_qubits_in_coupling_map(
     return a_subset, cm_set
 
 
-def convert_list_map_to_dict(list_map: list) -> defaultdict:
-    """Reorganize the coupling map since qubits may not be symmetric.
+def convert_list_map_to_dict(list_map: list) -> OrderedDict:
+    """Reorganize the coupling map since qubits may not be symmetric. Since we want the keys
+    for the map_dict to be ordered when creating the entangled list, we are using OrderedDict.
+    Otherwise, we can use faster defaultdict.
+
     Args:
         list_map (list): The map obtained from the backend.
 
@@ -113,12 +117,12 @@ def convert_list_map_to_dict(list_map: list) -> defaultdict:
         ValueError: Each sublist-pair within coupling_map should be a start and end qubit integers.
 
     Returns:
-        defaultdict: Each key is a start qubit, the value hold a list of qubits that can be
+        OrderedDict: Each key is a start qubit, the value hold a list of qubits that can be
                     be second qubit.  This accounts for if the qubits are symmetric.
     """
 
     if list_map:  # If there is something inside the list_map.
-        map_dict = defaultdict(list)
+        map_dict = OrderedDict()  # map_dict = defaultdict(list)
     else:
         warnings.warn("The list_map is empty. No dict will be returned.")
         return None
@@ -127,7 +131,10 @@ def convert_list_map_to_dict(list_map: list) -> defaultdict:
         len_sublist = len(pair)
         if len_sublist == 2:
             first_qubit, second_qubit = pair
-            map_dict[first_qubit].append(second_qubit)
+
+            # Use this syntax to use ordered dict, and then use list as default.
+            map_dict.setdefault(first_qubit, []).append(second_qubit)
+            # map_dict[first_qubit].append(second_qubit) # When using defaultdict.
         else:
             error_string = (
                 f"The length of each sublist within list map should contain "
