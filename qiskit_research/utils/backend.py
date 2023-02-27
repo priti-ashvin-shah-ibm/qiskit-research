@@ -49,7 +49,8 @@ def get_entangling_map_from_init_layout(
 
     Returns:
         list[list]: Same format at coupling map, but contains only qubits which
-                    are desired from init_layout.
+                    are desired from init_layout. The list has been sorted
+                    by both the first and second qubits pairs.
     """
     # Working on this.
     answer, coupling_set = confirm_init_layout_qubits_in_coupling_map(
@@ -68,12 +69,23 @@ def get_entangling_map_from_init_layout(
 
         # Rebuild the reduced list map for qubits that user denoted in init_layout.
         entangling_map = []
-        for first_qubit, connection in coupling_map_dict.items():
+
+        # Choose to sort just twice when exporting the information in dict,
+        # versus using OrderedDict which sorts each time data is added to dict.
+
+        # Sort just the keys of dict which represents the first_qubit of pair.
+        qubits_sorted = sorted(coupling_map_dict)
+        for first_qubit in qubits_sorted:
+            # Sort the value of the dict which represents the second_qubit of pair.
+            connection = sorted(coupling_map_dict[first_qubit])
             for second_qubit in connection:
                 if second_qubit in init_layout:
                     entangling_map.append([first_qubit, second_qubit])
+
+        # The number of qubits is LESS, than what was provided by provider.
         return entangling_map
     else:
+        # The number of qubits within init_layout is the same as provided by provider.
         return coupling_map
 
 
@@ -105,10 +117,8 @@ def confirm_init_layout_qubits_in_coupling_map(
     return a_subset, cm_set
 
 
-def convert_list_map_to_dict(list_map: list) -> OrderedDict:
-    """Reorganize the coupling map since qubits may not be symmetric. Since we want the keys
-    for the map_dict to be ordered when creating the entangled list, we are using OrderedDict.
-    Otherwise, we can use faster defaultdict.
+def convert_list_map_to_dict(list_map: list) -> defaultdict:
+    """Reorganize the coupling map since qubits may not be symmetric.
 
     Args:
         list_map (list): The map obtained from the backend.
@@ -118,11 +128,12 @@ def convert_list_map_to_dict(list_map: list) -> OrderedDict:
 
     Returns:
         OrderedDict: Each key is a start qubit, the value hold a list of qubits that can be
-                    be second qubit.  This accounts for if the qubits are symmetric.
+                    be second qubit.  This accounts for if the qubits are non-symmetric.
     """
 
     if list_map:  # If there is something inside the list_map.
-        map_dict = OrderedDict()  # map_dict = defaultdict(list)
+        map_dict = defaultdict(list)
+        # map_dict = OrderedDict()
     else:
         warnings.warn("The list_map is empty. No dict will be returned.")
         return None
@@ -133,8 +144,8 @@ def convert_list_map_to_dict(list_map: list) -> OrderedDict:
             first_qubit, second_qubit = pair
 
             # Use this syntax to use ordered dict, and then use list as default.
-            map_dict.setdefault(first_qubit, []).append(second_qubit)
-            # map_dict[first_qubit].append(second_qubit) # When using defaultdict.
+            # map_dict.setdefault(first_qubit, []).append(second_qubit)
+            map_dict[first_qubit].append(second_qubit)  # When using defaultdict.
         else:
             error_string = (
                 f"The length of each sublist within list map should contain "
