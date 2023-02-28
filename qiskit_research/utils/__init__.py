@@ -16,7 +16,13 @@ Utilities for running research experiments with Qiskit
 ======================================================
 """
 
-from qiskit_research.utils.backend import get_backend
+from qiskit_research.utils.backend import (
+    get_backend,
+    convert_list_map_to_dict,
+    get_entangling_map_from_init_layout,
+    get_outward_coupling_map,
+    get_layered_ansatz_coupling_map,
+)
 from qiskit_research.utils.dynamical_decoupling import (
     add_pulse_calibrations,
     dynamical_decoupling_passes,
@@ -44,6 +50,10 @@ from qiskit_research.utils.periodic_dynamical_decoupling import (
 
 __all__ = [
     "get_backend",
+    "convert_list_map_to_dict",
+    "get_entangling_map_from_init_layout",
+    "get_outward_coupling_map",
+    "get_layered_ansatz_coupling_map",
     "add_pulse_calibrations",
     "dynamical_decoupling_passes",
     "RZXtoEchoedCR",
