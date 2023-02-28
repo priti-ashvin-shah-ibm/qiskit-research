@@ -33,7 +33,7 @@ def get_backend(
 
 
 def get_entangling_map_from_init_layout(
-    coupling_map: list, init_layout: set
+    coupling_map: list, init_layout: set, qubit_distance: int = 2
 ) -> list[list]:
     """Give a sub-set of desired qubits denoted in init_layout, which is limited by qubits
     within the coupling map, generate a new list of entangling qubits.  The entangling qubits
@@ -68,6 +68,7 @@ def get_entangling_map_from_init_layout(
             coupling_map_dict.pop(qubit_id)
 
         # Rebuild the reduced list map for qubits that user denoted in init_layout.
+        entangling_map_bare = []
         entangling_map = []
 
         # Sort just the keys of dict which represents the first_qubit of pair.
@@ -75,9 +76,12 @@ def get_entangling_map_from_init_layout(
             # The value is a list of connections for second_qubit, so sort that separately.
             for second_qubit in sorted(connection):
                 if second_qubit in init_layout:
-                    entangling_map.append([first_qubit, second_qubit])
+                    entangling_map_bare.append([first_qubit, second_qubit])
 
         # The number of qubits is LESS, than what was provided by provider.
+        # Add code to take to power for entangling map
+        # size should be limited to qubits within only qubit_map_bare
+
         return entangling_map
     else:
         # The number of qubits within init_layout is the same as provided by provider.
