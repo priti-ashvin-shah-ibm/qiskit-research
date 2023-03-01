@@ -17,6 +17,8 @@ from collections import defaultdict, OrderedDict
 from qiskit import BasicAer
 from qiskit.providers import Backend, Provider
 from qiskit_aer import AerSimulator
+import numpy as np
+from numpy.linalg import matrix_power
 
 
 def get_backend(
@@ -34,68 +36,145 @@ def get_backend(
 
 def get_entangling_map_from_init_layout(
     coupling_map: list, init_layout: set, qubit_distance: int = 2
-) -> list[list]:
-    """Give a sub-set of desired qubits denoted in init_layout, which is limited by qubits
-    within the coupling map, generate a new list of entangling qubits.  The entangling qubits
-    is a subset of availabe qubits from the coupling map.
+) -> dict:
+    """Give an equal or subset of desired qubits denoted in init_layout, which should be limited by qubits
+    within the coupling map, generate a new dict of entangling qubits.  The entangling qubits
+    is equal or a subset of available qubits from the coupling map that are apart by qubit_distance.
 
     Args:
         coupling_map (list): From provider's backend.
         init_layout (set): Qubit_ids which are desired and a subset of available
                             qubits from coupling map.
+        qubit_distance (int, optional): Determines exponent for matrix multiplication. Defaults to 2.
 
     Raises:
         ValueError: User requested a qubit with does not exist in the coupling map.
 
     Returns:
-        list[list]: Same format at coupling map, but contains only qubits which
-                    are desired from init_layout. The list has been sorted
-                    by both the first and second qubits pairs.
+        dict: Contains only qubits which are desired from init_layout. The list has been sorted
+            by both the first and second qubits pairs. Then put desired qubits formatted within a matrix
+            and multiplied by qubit_distance times. The number in the matrix corresponds to how many
+            paths in the graphs connect the two qubits.  Within the result of matrix multiplication, use
+            the qubits with "1"  entry within the matrix.
     """
+    sorted_init_layout = sorted(init_layout)
     # Working on this.
     answer, coupling_set = confirm_init_layout_qubits_in_coupling_map(
-        coupling_map, init_layout
+        coupling_map, sorted_init_layout
     )
     if not answer:
         error_string = "A request to use qubit which does not exist in backend."
         raise ValueError(error_string)
 
-    the_diff = coupling_set.symmetric_difference(init_layout)
+    the_diff = coupling_set.symmetric_difference(sorted_init_layout)
+    coupling_map_dict = convert_list_map_to_dict(coupling_map)
+    entangling_map_dict = matrix_to_get_entangle_dict(
+        the_diff,
+        coupling_map_dict,
+        sorted_init_layout,
+        qubit_distance,
+    )
+    return entangling_map_dict
+
+
+def matrix_to_get_entangle_dict(
+    the_diff: set,
+    coupling_map_dict: defaultdict,
+    sorted_init_layout: list,
+    qubit_distance: int = 2,
+) -> defaultdict:
+    """_summary_
+
+    Args:
+        the_diff (set): Qubits that are within the coupling_map VS init_layout.
+        coupling_map_dict (defaultdict): Reformatted coupling_map key=first_qubit,
+                                            value=list of all qubits connected to it.
+        sorted_init_layout (list): Can use the index of the qubits to determine layout of matrix axis.
+        qubit_distance (int, optional): The exponent of square matrix.  Defaults to 2.
+
+    Returns:
+        defaultdict: Contains only qubits which are desired from init_layout. The list has been sorted
+            by both the first and second qubits pairs. Then put desired qubits formatted within a matrix
+            and multiplied by qubit_distance times. The number in the matrix corresponds to how many
+            paths in the graphs connect the two qubits.  Within the result of matrix multiplication, use
+            the qubits with "1"  entry within the matrix.
+    """
+
     if the_diff:
-        # The coupling_map_dict is an OrderedDict SO the keys are already sorted.
-        coupling_map_dict = convert_list_map_to_dict(coupling_map)
         for qubit_id in the_diff:
             coupling_map_dict.pop(qubit_id)
 
-        # Rebuild the reduced list map for qubits that user denoted in init_layout.
-        entangling_map_bare = []
-        entangling_map = []
+    # Interim solution, still need to address qubit_distance.
+    size_of_matrix = len(sorted_init_layout)
 
-        # Sort just the keys of dict which represents the first_qubit of pair.
-        for first_qubit, connection in sorted(coupling_map_dict.items()):
-            # The value is a list of connections for second_qubit, so sort that separately.
-            for second_qubit in sorted(connection):
-                if second_qubit in init_layout:
-                    entangling_map_bare.append([first_qubit, second_qubit])
+    # Populate the matrix with zero.
+    entangle_matrix = np.zeros([size_of_matrix, size_of_matrix], dtype=int)
+    initial_layout_lookup = defaultdict(int)
 
-        # The number of qubits is LESS, than what was provided by provider.
-        # Add code to take to power for entangling map
-        # size should be limited to qubits within only qubit_map_bare
+    # For each qubit, denote the index on the matrix axis.
+    for index, qubit in enumerate(sorted_init_layout):
+        initial_layout_lookup[qubit] = index
 
-        return entangling_map
-    else:
-        # The number of qubits within init_layout is the same as provided by provider.
-        return coupling_map
+    # For every connection between first and second qubits, fill the connections with value of 1.
+
+    # Sort just the keys of dict which represents the first_qubit of pair.
+    for first_qubit, connection in sorted(coupling_map_dict.items()):
+        # The value is a list of connections for second_qubit, so sort that separately.
+        for second_qubit in sorted(connection):
+            # Rebuild the reduced list map for qubits that user denoted in sorted_init_layout.
+            if second_qubit in sorted_init_layout:
+                entangle_matrix[
+                    initial_layout_lookup[first_qubit],
+                    initial_layout_lookup[second_qubit],
+                ] = 1
+
+    entangled_result = matrix_power(entangle_matrix, qubit_distance)
+    entangling_dict = matrix_to_dict(entangled_result, sorted_init_layout)
+
+    return entangling_dict
+
+
+def matrix_to_dict(
+    entangled_result: "numpy.ndarray",
+    sorted_init_layout: list,
+) -> dict:
+    """Extract qubit ids for when the matrix is equal to 1 and formats the data
+    with key=start_qubit with a value(list) of the second_qubit.
+
+    The number in the matrix corresponds to how many paths in the graphs connect
+    the two qubits. For a value of 3 then, the qubits could be next to each other
+    but you can find paths that double-back to the qubit in question. For this reason,
+    it is important to only consider the pairs whose value is 1.
+
+    Args:
+        entangled_result (numpy.ndarray): 2-D square array with each index corresponding to
+                                        qubits in the sorted_init_layout.
+        sorted_init_layout (list): Sorted list of the user-provided init_layout.  The init_layout,
+                                ideally denotes the "good" qubits.
+
+    Returns:
+        dict: Using the entangled_result, provide key=start_qubit with a value(list)
+            of the second_qubit
+    """
+
+    entangling_dict = defaultdict(list)
+    for first_index, row in enumerate(entangled_result):
+        for second_index, value in enumerate(row):
+            if value == 1:
+                entangling_dict[sorted_init_layout[first_index]].append(
+                    sorted_init_layout[second_index]
+                )
+    return entangling_dict
 
 
 def confirm_init_layout_qubits_in_coupling_map(
-    coupling_map: list[list], init_layout: set
+    coupling_map: list[list], init_layout: list
 ) -> tuple[bool, set]:
     """Confirm that init_layout has qubits that are equal or less than the coupling map.
 
     Args:
         coupling_map (list[list]): From backend determined by provider.
-        init_layout (set): Determined by user, typically the best qubits on a given backend.
+        init_layout (list): Determined by user, typically the best qubits on a given backend.
 
     Returns:
         bool: If init_layout has qubits within coupling_map.
