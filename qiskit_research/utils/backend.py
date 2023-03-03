@@ -12,7 +12,8 @@
 
 """Utilities for dealing with backends and their coupling maps."""
 import warnings
-from typing import Optional
+from typing import Optional, Union, Tuple
+from copy import deepcopy
 from collections import defaultdict, OrderedDict
 from qiskit import BasicAer
 from qiskit.providers import Backend, Provider
@@ -36,7 +37,7 @@ def get_backend(
 
 def get_entangling_map_from_init_layout(
     coupling_map: list, init_layout: set, qubit_distance: int = 2
-) -> dict:
+) -> Tuple[dict, list]:
     """Give an equal or subset of desired qubits denoted in init_layout, which should be limited by qubits
     within the coupling map, generate a new dict of entangling qubits.  The entangling qubits
     is equal or a subset of available qubits from the coupling map that are apart by qubit_distance.
@@ -56,6 +57,8 @@ def get_entangling_map_from_init_layout(
             and multiplied by qubit_distance times. The number in the matrix corresponds to how many
             paths in the graphs connect the two qubits.  Within the result of matrix multiplication, use
             the qubits with "1"  entry within the matrix.
+        list[list]: same data as list dict but each sublist is a pair of key,value from dict.  The value is
+            a list, so the pair is made with each entry of the list.
     """
     sorted_init_layout = sorted(init_layout)
     # Working on this.
@@ -68,13 +71,13 @@ def get_entangling_map_from_init_layout(
 
     the_diff = coupling_set.symmetric_difference(sorted_init_layout)
     coupling_map_dict = convert_list_map_to_dict(coupling_map)
-    entangling_map_dict = matrix_to_get_entangle_dict(
+    entangling_map_dict, reduced_coupling_list = matrix_to_get_entangle_dict(
         the_diff,
         coupling_map_dict,
         sorted_init_layout,
         qubit_distance,
     )
-    return entangling_map_dict
+    return entangling_map_dict, reduced_coupling_list
 
 
 def matrix_to_get_entangle_dict(
@@ -82,7 +85,7 @@ def matrix_to_get_entangle_dict(
     coupling_map_dict: defaultdict,
     sorted_init_layout: list,
     qubit_distance: int = 2,
-) -> defaultdict:
+) -> Tuple[defaultdict, list]:
     """_summary_
 
     Args:
@@ -97,12 +100,16 @@ def matrix_to_get_entangle_dict(
             by both the first and second qubits pairs. Then put desired qubits formatted within a matrix
             and multiplied by qubit_distance times. The number in the matrix corresponds to how many
             paths in the graphs connect the two qubits.  Within the result of matrix multiplication, use
-            the qubits with "1"  entry within the matrix.
+            the qubits with "1"  entry within the matrix, which is not on the diagonal.
+        list[list(tuple)]: Each sublist is a list of pair where the first qubit is
+                            qubit_distance away from second qubit. The pairs are not repeated.
     """
 
     if the_diff:
         for qubit_id in the_diff:
             coupling_map_dict.pop(qubit_id)
+    # Note: coupling_map_dict has been reduced by init_layout just for ONLY the key.
+    # The value will be reduced later and put into reduced_coupling_map.
 
     # Interim solution, still need to address qubit_distance.
     size_of_matrix = len(sorted_init_layout)
@@ -110,6 +117,9 @@ def matrix_to_get_entangle_dict(
     # Populate the matrix with zero.
     entangle_matrix = np.zeros([size_of_matrix, size_of_matrix], dtype=int)
     initial_layout_lookup = defaultdict(int)
+
+    # Populate a dict to contain the information about the reduced coupling map.
+    reduced_coupling_map = defaultdict(list)
 
     # For each qubit, denote the index on the matrix axis.
     for index, qubit in enumerate(sorted_init_layout):
@@ -128,10 +138,89 @@ def matrix_to_get_entangle_dict(
                     initial_layout_lookup[second_qubit],
                 ] = 1
 
+                # This dict has both the key and value limited by init_layout.
+                reduced_coupling_map[first_qubit].append(second_qubit)
+
     entangled_result = matrix_power(entangle_matrix, qubit_distance)
     entangling_dict = matrix_to_dict(entangled_result, sorted_init_layout)
+    list_of_layers_of_pairs = pairs_from_n_and_reduced_coupling_map(
+        entangling_dict, reduced_coupling_map
+    )
 
-    return entangling_dict
+    return entangling_dict, list_of_layers_of_pairs
+
+
+def pairs_from_n_and_reduced_coupling_map(
+    entangling_dict: defaultdict, reduced_coupling_map: defaultdict
+) -> list:
+    """By using the reduced coupling map to look at qubit_distance within entangling_dict,
+    create list of layers.  Each layer is a grouping of tuples of qubit pairs.
+
+    Args:
+        entangling_dict (defaultdict): Contains only qubits which are desired from init_layout. The list has been sorted
+            by both the first and second qubits pairs. Then put desired qubits formatted within a matrix
+            and multiplied by qubit_distance times. The number in the matrix corresponds to how many
+            paths in the graphs connect the two qubits.  Within the result of matrix multiplication, use
+            the qubits with "1"  entry within the matrix, which is not on the diagonal.
+        reduced_coupling_map (defaultdict): This dict has both the key and value limited by init_layout.
+
+    Returns:
+        list[list(tuple)]: Each sublist is a list of pair where the first qubit is
+                            qubit_distance away from second qubit. The pairs are not repeated
+    """
+
+    # This sort may not be needed.
+    # The grouping by layer is different if the below sort is executed.
+    sorted_reduced_coupling_map = OrderedDict(
+        sorted(reduced_coupling_map.items(), key=lambda x: len(x[1]), reverse=True)
+    )
+    # Get a list of tuples for what is desired.
+    reduced_coupling_list_to_del = dict_to_list(sorted_reduced_coupling_map)
+    pairs_with_n = []
+    for first_qubit, second_qubit_list in sorted_reduced_coupling_map.items():
+        for second_qubit in second_qubit_list:
+            n_away_first_qubit_list = entangling_dict[first_qubit]
+            # n_away_first_qubit_list.append(first_qubit)
+            n_away_second_qubit_list = entangling_dict[second_qubit]
+            # n_away_second_qubit_list.append(second_qubit)
+
+            # find the pairs from reduced coupling map that are n away from each other.
+            grouping_pair = []
+            a_pair = (first_qubit, second_qubit)
+            if a_pair in reduced_coupling_list_to_del:
+                grouping_pair.append(a_pair)
+                reduced_coupling_list_to_del.remove(a_pair)
+
+            for qubit_start in n_away_first_qubit_list:
+                for qubit_test in n_away_second_qubit_list:
+                    a_pair = (qubit_start, qubit_test)
+                    if a_pair in reduced_coupling_list_to_del:
+                        grouping_pair.append(a_pair)
+                        reduced_coupling_list_to_del.remove(a_pair)
+                        # After finding a pair with first qubit, don't look for any more pairs.
+                        break
+            if grouping_pair:
+                pairs_with_n.append(grouping_pair)
+
+    return pairs_with_n
+
+
+def dict_to_list(coupling_map_dict: defaultdict) -> list:
+    """Change the format from dict to list of potential qubits.
+
+    Args:
+        coupling_map_dict (defaultdict): A dict where the key is fist_qubit, and the value is the
+                                        list of potential second qubits.
+
+    Returns:
+        list: Reformatted list of qubit pairs.
+    """
+    coupling_map_list = []
+    for first_qubit, second_qubit_list in coupling_map_dict.items():
+        for second_qubit in second_qubit_list:
+            coupling_map_list.append((first_qubit, second_qubit))
+
+    return coupling_map_list
 
 
 def matrix_to_dict(
@@ -144,7 +233,8 @@ def matrix_to_dict(
     The number in the matrix corresponds to how many paths in the graphs connect
     the two qubits. For a value of 3 then, the qubits could be next to each other
     but you can find paths that double-back to the qubit in question. For this reason,
-    it is important to only consider the pairs whose value is 1.
+    it is important to only consider the pairs whose value is 1, along with not being
+    on the diagonal.
 
     Args:
         entangled_result (numpy.ndarray): 2-D square array with each index corresponding to
@@ -160,7 +250,7 @@ def matrix_to_dict(
     entangling_dict = defaultdict(list)
     for first_index, row in enumerate(entangled_result):
         for second_index, value in enumerate(row):
-            if value == 1:
+            if value == 1 and first_index != second_index:
                 entangling_dict[sorted_init_layout[first_index]].append(
                     sorted_init_layout[second_index]
                 )
