@@ -125,10 +125,14 @@ class PopulateCouplingMapDictAndMatrixDict:
     """Return entangling_map_dict and reduced_coupling_list."""
 
     def __init__(self, coupling_map: list, init_layout: set, qubit_distance: int = 2):
-        # qubit_distance (int, optional): Determines exponent for matrix multiplication. Defaults to 2.
-        # coupling_map (list): From provider's backend.
-        # init_layout (set): Qubit_ids which are desired and a subset of available
-        #                        qubits from coupling map.
+        """Prepare the data so that logic to pair the qubits can be implemented.
+
+        Args:
+            coupling_map (list): From provider's backend.
+            init_layout (set): Qubit_ids which are desired and a subset of available
+                                qubits from coupling map.
+            qubit_distance (int, optional): Determines exponent for matrix multiplication. Defaults to 2.
+        """
         self.coupling_map = coupling_map
         # Used to determine self.the_diff
         self.coupling_set = None
@@ -154,21 +158,10 @@ class PopulateCouplingMapDictAndMatrixDict:
         self.entangling_dict = self._matrix_to_get_entangle_dict()  # defaultdict(list)
 
     def populate_coupling_map_dict(self):
-        """Give an equal or subset of desired qubits denoted in self.init_layout, which should be limited by qubits
-        within the coupling map, generate a new dict of entangling qubits.  The entangling qubits
-        is equal or a subset of available qubits from the self.coupling map that are apart by self.qubit_distance.
+        """Do some error checking and convert the coupling map to a dict.
 
         Raises:
             ValueError: User requested a qubit with does not exist in the coupling map.
-
-        Returns:
-            dict: Contains only qubits which are desired from init_layout. The list has been sorted
-                by both the first and second qubits pairs. Then put desired qubits formatted within a matrix
-                and multiplied by self.qubit_distance times. The number in the matrix corresponds to how many
-                paths in the graphs connect the two qubits.  Within the result of matrix multiplication, use
-                the qubits with "1"  entry within the matrix.
-            list[list]: same data as list dict but each sublist is a pair of key,value from dict.  The value is
-                a list, so the pair is made with each entry of the list.
         """
         self.sorted_init_layout = sorted(self.init_layout)
         # Working on this.
@@ -181,6 +174,11 @@ class PopulateCouplingMapDictAndMatrixDict:
         self.coupling_map_dict = convert_list_map_to_dict(self.coupling_map)
 
     def create_entangle_matrix(self):
+        """Give an equal or subset of desired qubits denoted in self.init_layout, which should be limited by qubits
+        within the coupling map, generate a new dict of entangling qubits.  The entangling qubits
+        is equal or a subset of available qubits from the self.coupling map that are apart by self.qubit_distance.
+        """
+
         if self.the_diff:
             for qubit_id in self.the_diff:
                 self.coupling_map_dict.pop(qubit_id)
@@ -216,24 +214,18 @@ class PopulateCouplingMapDictAndMatrixDict:
 
     def _matrix_to_get_entangle_dict(
         self,
-    ):
-        """_summary_
-
-        Args:
-            the_diff (set): Qubits that are within the coupling_map VS init_layout.
-            coupling_map_dict (defaultdict): Reformatted coupling_map key=first_qubit,
-                                                value=list of all qubits connected to it.
-            sorted_init_layout (list): Can use the index of the qubits to determine layout of matrix axis.
-            qubit_distance (int, optional): The exponent of square matrix.  Defaults to 2.
+    ) -> dict:
+        """Give an equal or subset of desired qubits denoted in self.init_layout, which should be limited by qubits
+        within the coupling map, generate a new dict of entangling qubits.  The entangling qubits
+        is equal or a subset of available qubits from the self.coupling map that are apart by self.qubit_distance.
 
         Returns:
-            defaultdict: Contains only qubits which are desired from init_layout. The list has been sorted
+            defaultdict(list): Contains only qubits which are desired from init_layout. The list has been sorted
                 by both the first and second qubits pairs. Then put desired qubits formatted within a matrix
                 and multiplied by self.qubit_distance times. The number in the matrix corresponds to how many
                 paths in the graphs connect the two qubits.  Within the result of matrix multiplication, use
                 the qubits with "1"  entry within the matrix, which is not on the diagonal.
-            list[list(tuple)]: Each sublist is a list of pair where the first qubit is
-                                self.qubit_distance away from second qubit. The pairs are not repeated.
+
         """
 
         initial_layout_lookup = defaultdict(int)
@@ -265,7 +257,19 @@ class PopulateCouplingMapDictAndMatrixDict:
 
 
 class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
+    """Use the parent class to gather the data for sorting. Then this class will sort
+    according to desired Ansatz.
+    """
+
     def __init__(self, coupling_map: list, init_layout: set, qubit_distance: int = 2):
+        """Pass arguments to parent init and denote variable to hold result of sorting.
+
+        Args:
+            coupling_map (list): From provider's backend.
+            init_layout (set): Qubit_ids which are desired and a subset of available
+                                qubits from coupling map.
+            qubit_distance (int, optional): Determines exponent for matrix multiplication. Defaults to 2.
+        """
         PopulateCouplingMapDictAndMatrixDict.__init__(
             self,
             coupling_map=coupling_map,
