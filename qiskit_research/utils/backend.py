@@ -359,17 +359,18 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             second_qubit (int): Another qubit in a pair from the reduced_coupling_map.
             grouping_pair (list): Holds a grouping of pairs for which are n away from each other.
 
-        Returns:
+            Returns:
             list: List of Tuples which are a pair that are n away from each other.
         """
         a_pair = (first_qubit, second_qubit)
+        a_pair_flipped = (second_qubit, first_qubit)
         a_pair_sorted = tuple(sorted(a_pair))
         n_away_first_qubit_list = self.entangling_dict[first_qubit]
         n_away_second_qubit_list = self.entangling_dict[second_qubit]
 
         # find the pairs from reduced coupling map that are n away from each other.
         if (
-            a_pair_sorted in self.reduced_coupling_list_to_del
+            a_pair_flipped in self.reduced_coupling_list_to_del
             or a_pair in self.reduced_coupling_list_to_del
         ):
             grouping_pair.append(a_pair_sorted)
@@ -386,57 +387,39 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                 )
             ]
 
-        grouping_pair = self.handle_a_sub_pair(
-            grouping_pair, n_away_first_qubit_list, n_away_second_qubit_list
-        )
+        if a_pair_sorted in grouping_pair or a_pair in grouping_pair:
+            for qubit_start in n_away_first_qubit_list:
+                for qubit_test in n_away_second_qubit_list:
+                    a_pair_test = (qubit_start, qubit_test)
+                    a_pair_test_flipped = (qubit_test, qubit_start)
+                    a_pair_test_sorted = tuple(sorted(a_pair_test))
 
-        return grouping_pair
+                    if (
+                        a_pair_test_flipped in self.reduced_coupling_list_to_del
+                        or a_pair_test in self.reduced_coupling_list_to_del
+                    ):
+                        grouping_pair.append(a_pair_test_sorted)
 
-    def handle_a_sub_pair(
-        self,
-        grouping_pair: list,
-        n_away_first_qubit_list: list,
-        n_away_second_qubit_list: list,
-    ):
-        """Part of recursive algorithm to determine the pairs which are n away from each other.
+                        # Reduce to a new list without qubits used for a_pair
+                        self.reduced_coupling_list_to_del = [
+                            (q1, q2)
+                            for (q1, q2) in self.reduced_coupling_list_to_del
+                            if not (
+                                qubit_start == q1
+                                or qubit_start == q2
+                                or qubit_test == q1
+                                or qubit_test == q2
+                            )
+                        ]
 
-        Args:
-            grouping_pair (list): Holds a grouping of pairs for which are n away from each other.
-            n_away_first_qubit_list (list): From the entangling_dict to determine which qubits are
-                                            n away first qubit.
-            n_away_second_qubit_list (list):  From the entangling_dict to determine which qubits are
-                                            n away second qubit.
+                        # Need the if statement for the last case of double for loops.
+                        if a_pair_sorted in grouping_pair:
+                            grouping_pair = self.handle_pair(
+                                qubit_start, qubit_test, grouping_pair
+                            )
 
-        Returns:
-            _type_: Holds the list of Tuples which are a pair that are n away from each other.
-        """
-        for qubit_start in n_away_first_qubit_list:
-            for qubit_test in n_away_second_qubit_list:
-                a_pair_test = (qubit_start, qubit_test)
-                a_pair_test_sorted = tuple(sorted(a_pair_test))
+                        break
 
-                if (
-                    a_pair_test_sorted in self.reduced_coupling_list_to_del
-                    or a_pair_test in self.reduced_coupling_list_to_del
-                ):
-                    grouping_pair.append(a_pair_test_sorted)
-
-                    # Reduce to a new list without qubits used for a_pair
-                    self.reduced_coupling_list_to_del = [
-                        (q1, q2)
-                        for (q1, q2) in self.reduced_coupling_list_to_del
-                        if not (
-                            qubit_start == q1
-                            or qubit_start == q2
-                            or qubit_test == q1
-                            or qubit_test == q2
-                        )
-                    ]
-
-                    grouping_pair = self.handle_pair(
-                        qubit_start, qubit_test, grouping_pair
-                    )
-                    break
         return grouping_pair
 
 
