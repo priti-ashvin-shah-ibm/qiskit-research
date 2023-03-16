@@ -280,6 +280,7 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         self.dict_of_layers_of_pairs = defaultdict(lambda: defaultdict(list))
         self.reduced_layers_of_pairs = []  # Will be a lists of lists which is sorted.
         self.reduced_coupling_list_to_del = None
+        self.tally_used_qubits = []
 
     def pairs_from_n_and_reduced_coupling_map(self):
         """By using the reduced_coupling_map to look at qubit_distance within self.entangling_dict,
@@ -308,14 +309,18 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             for first_qubit, second_qubit_list in reduced_coupling_deque:
                 for second_qubit in second_qubit_list:
                     grouping_pair = []
+
                     grouping_pair = self.handle_pair(
                         first_qubit, second_qubit, grouping_pair
                     )
                     if grouping_pair:
                         grouping_pair.sort()
-                        # if grouping_pair not in list_of_layers_of_pairs:
+                        # If grouping_pair not in list_of_layers_of_pairs:
                         list_of_layers_of_pairs.append(grouping_pair)
                         tally_used_pairs.extend(grouping_pair)
+
+                        # Reset after each grouping.
+                        self.tally_used_qubits = list()
 
                         # Need to rebuild a further reduced_coupling_map by tally_used_pairs.
                         self.reduced_coupling_list_to_del = convert_dict_to_list(
@@ -329,7 +334,6 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                                 or (q2, q1) in tally_used_pairs
                             )
                         ]
-                        a = 5  # for breakpoint.
 
             self.dict_of_layers_of_pairs[key]["useful"] = list_of_layers_of_pairs
 
@@ -374,7 +378,8 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             or a_pair in self.reduced_coupling_list_to_del
         ):
             grouping_pair.append(a_pair_sorted)
-
+            self.tally_used_qubits.append(first_qubit)
+            self.tally_used_qubits.append(second_qubit)
             # Reduce to a new list without qubits used for a_pair_sorted
             self.reduced_coupling_list_to_del = [
                 (q1, q2)
@@ -385,6 +390,17 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                     or second_qubit == q1
                     or second_qubit == q2
                 )
+            ]
+
+        # If the qubit has already been used, no point is testing pairs with it.
+        if self.tally_used_qubits:
+            n_away_first_qubit_list = [
+                q1 for q1 in n_away_first_qubit_list if not q1 in self.tally_used_qubits
+            ]
+            n_away_second_qubit_list = [
+                q2
+                for q2 in n_away_second_qubit_list
+                if not q2 in self.tally_used_qubits
             ]
 
         if a_pair_sorted in grouping_pair or a_pair in grouping_pair:
@@ -399,6 +415,8 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                         or a_pair_test in self.reduced_coupling_list_to_del
                     ):
                         grouping_pair.append(a_pair_test_sorted)
+                        self.tally_used_qubits.append(qubit_start)
+                        self.tally_used_qubits.append(qubit_test)
 
                         # Reduce to a new list without qubits used for a_pair
                         self.reduced_coupling_list_to_del = [
