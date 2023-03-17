@@ -297,7 +297,8 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
 
         reduced_coupling_deque = deque(self.reduced_coupling_map.items())
 
-        ### Rotate reduced_coupling_deque until going through each qubit.
+        # Rotate reduced_coupling_deque until going through each qubit.  Each start-qubit can
+        # give potentially a different set of groupings.
         for idx in range(len(reduced_coupling_deque)):
             reduced_coupling_deque.rotate(1)  # Rotate just once for each idx.
             key = reduced_coupling_deque[0][0]
@@ -356,12 +357,15 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         self, first_qubit: int, second_qubit: int, grouping_pair: list
     ) -> list:
         """This is the beginning of a recursive algorithm. Return a list of pair that are n
-        away from the first and second qubit.
+        away from the first and second qubit. Continue searching through all the options
+        and then return a group of pairs.
 
         Args:
             first_qubit (int): A qubit in a pair from the reduced_coupling_map.
             second_qubit (int): Another qubit in a pair from the reduced_coupling_map.
             grouping_pair (list): Holds a grouping of pairs for which are n away from each other.
+                                The pairs are sorted when entered into this link.  This is so we can
+                                compare with other sets that are created with different start qubits.
 
             Returns:
             list: List of Tuples which are a pair that are n away from each other.
@@ -448,9 +452,12 @@ def get_outward_coupling_map(coupling_map, ent_map, start_qubits):
     suitable for use by canned algorithms such as TwoLocal in the entanglement= kwarg.
 
     Args:
-        coupling_map: coupling map of backend (TODO: need to currently deepcopy this before calling method)
-        ent_map: rearranged coupling map used for generating entanglement in correct order (TODO: currently take empty list)
-        start_qubits: qubits to find the pairs containing (TODO: currently takes [middle_qubit])
+        coupling_map: coupling map of backend
+                    (TODO: need to currently deepcopy this before calling method)
+        ent_map: rearranged coupling map used for generating entanglement in correct order
+                (TODO: currently take empty list)
+        start_qubits: qubits to find the pairs containing
+                        TODO: currently takes [middle_qubit])
     """
     next_qubits = []
     for pair in [pair for pair in coupling_map if pair[0] in start_qubits]:
