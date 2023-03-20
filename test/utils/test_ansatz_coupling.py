@@ -40,10 +40,11 @@ from qiskit_ibm_provider import IBMProvider
 
 
 class TestEntanglingMap(unittest.TestCase):
-    """Test passes."""
+    """Test passes using two different qubit_lengths."""
 
     def setUp(self):
-        # setUp is run before every individual test method
+        """Setup unit test runs before every individual test method."""
+
         ###########  Use simulated backend.  ###############
         self.backend = FakeWashington()  # 127 qubit device.
         self.config = self.backend.configuration()
@@ -79,7 +80,8 @@ class TestEntanglingMap(unittest.TestCase):
         }  # Meaningful list for FakeWashington
 
     def tearDown(self):
-        None
+        """Tie any loose ends after each test."""
+        pass
 
     def get_entangling_map_2(self, qubit_distance: int = 2):
 
@@ -108,3 +110,7 @@ class TestEntanglingMap(unittest.TestCase):
         ) = new_layers.pairs_from_n_and_reduced_coupling_map()
 
         # Then compare to expected results using https://docs.python.org/3/library/unittest.html.
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
