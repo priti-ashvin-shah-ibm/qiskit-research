@@ -36,6 +36,63 @@ def get_backend(
     raise ValueError("The given name does not match any supported backends.")
 
 
+def get_outward_coupling_map(coupling_map, ent_map, start_qubits):
+    """
+    Recursive method for rearranging a coupling map to generate an entanglement
+    map outward from a set of starting qubit(s). The new entanglement map is then
+    suitable for use by canned algorithms such as TwoLocal in the entanglement= kwarg.
+
+    Args:
+        coupling_map: coupling map of backend
+                    (TODO: need to currently deepcopy this before calling method)
+        ent_map: rearranged coupling map used for generating entanglement in correct order
+                (TODO: currently take empty list)
+        start_qubits: qubits to find the pairs containing
+                        TODO: currently takes [middle_qubit])
+    """
+    next_qubits = []
+    for pair in [pair for pair in coupling_map if pair[0] in start_qubits]:
+        next_qubits.append(pair[1])
+        ent_map.append(pair)
+        coupling_map.remove(pair)
+        coupling_map.remove(list(reversed(pair)))
+
+    if next_qubits:
+        get_outward_coupling_map(coupling_map, ent_map, next_qubits)
+
+
+def get_layered_ansatz_coupling_map(coupling_map):
+    """
+    Method to layer entangling gates of an ansatz type into those that can be executed
+    simultaneously. Currently assumes spacing of 1 qubit within a layer.
+    TODO: extend to more than single-qubit spacing
+    """
+    # TODO: may want to make the below directional to support certain backends, i.e. ibm_sherbrooke
+    ordered_cm = [pair for pair in coupling_map if pair[0] < pair[1]]
+
+    # split entanglement map into sets of non-overlapping qubits
+    ent_map = []
+    for pair in ordered_cm:
+        if ent_map == []:
+            ent_map.append([pair])
+        elif all(
+            [
+                any([pair[0] in epair or pair[1] in epair for epair in emap])
+                for emap in ent_map
+            ]
+        ):
+            ent_map.append([pair])
+        else:
+            for emap in ent_map:
+                if all(
+                    [pair[0] not in epair and pair[1] not in epair for epair in emap]
+                ):
+                    emap.append(pair)
+                    break
+
+    return ent_map
+
+
 def convert_list_map_to_dict(list_map: list) -> defaultdict:
     """Reorganize the coupling map since qubits may not be symmetric.
 
@@ -151,6 +208,9 @@ class PopulateCouplingMapDictAndMatrixDict:
         self.qubit_distance = qubit_distance
         self.populate_coupling_map_dict()
 
+        self.initial_layout_lookup = (
+            None  # Denotes the qubits for entangle_result and entangle_matrix.
+        )
         self.entangled_result = None  # The result of matrix multiplication.
         self.entangle_matrix = None
         # Populate a dict to contain the information about the reduced coupling map.
@@ -229,11 +289,11 @@ class PopulateCouplingMapDictAndMatrixDict:
 
         """
 
-        initial_layout_lookup = defaultdict(int)
+        self.initial_layout_lookup = defaultdict(int)
 
         # For each qubit, denote the index on the matrix axis.
         for index, qubit in enumerate(self.sorted_init_layout):
-            initial_layout_lookup[qubit] = index
+            self.initial_layout_lookup[qubit] = index
 
         # For every connection between first and second qubits, fill the connections with value of 1.
 
@@ -244,8 +304,8 @@ class PopulateCouplingMapDictAndMatrixDict:
                 # Rebuild the reduced list map for qubits that user denoted in self.sorted_init_layout.
                 if second_qubit in self.sorted_init_layout:
                     self.entangle_matrix[
-                        initial_layout_lookup[first_qubit],
-                        initial_layout_lookup[second_qubit],
+                        self.initial_layout_lookup[first_qubit],
+                        self.initial_layout_lookup[second_qubit],
                     ] = 1
 
                     # This dict has both the key and value limited by init_layout.
@@ -278,9 +338,18 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             qubit_distance=qubit_distance,
         )
         self.dict_of_layers_of_pairs = defaultdict(lambda: defaultdict(list))
-        self.reduced_layers_of_pairs = []  # Will be a lists of lists which is sorted.
+        self.unique_layers_of_pairs = []  # Will be a lists of lists which is sorted.
+        # Will be list of lists with minimum number of layers.
+        self.min_layer_unique_layer_of_pairs = []
+        self.n2_combined_layers = []
+        self.n2_combined_layers_min = []
+        self.temp_sorted_by_len = []
+        # Keeps track of the smallest len within self.temp_sorted_by_len
+        self.min_number_n2_compress = None
+
         self.reduced_coupling_list_to_del = None
         self.tally_used_qubits = []
+        self.min_number_of_layers = None
 
     def pairs_from_n_and_reduced_coupling_map(self):
         """By using the reduced_coupling_map to look at qubit_distance within self.entangling_dict,
@@ -289,21 +358,25 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
 
         Returns:
 
-            defualtdict[defaultdict]]:  self.dict_of_layers_of_pairs gets populated now. The key is the qubit which is used
+            defaultdict[defaultdict]]:  self.dict_of_layers_of_pairs gets populated now. The key is the qubit which is used
                                         to start the search. There is a second key which denotes the unused pairs within the
                                         search.
-            list[list(tuple)]: Each sublist are lists of pairs which are not repeated.  Each sublist should be unique.
+            list[list(tuple)]: Each sublist are lists of pairs which are not repeated.
+                                Each sublist should be unique.
+                                Each sublist should have number of layers to be the minimum.
         """
 
         reduced_coupling_deque = deque(self.reduced_coupling_map.items())
+        self.min_number_of_layers = None
 
         # Rotate reduced_coupling_deque until going through each qubit.  Each start-qubit can
         # give potentially a different set of groupings.
-        for idx in range(len(reduced_coupling_deque)):
-            reduced_coupling_deque.rotate(1)  # Rotate just once for each idx.
+        for index in range(len(reduced_coupling_deque)):
+            reduced_coupling_deque.rotate(1)  # Rotate just once for each index.
             key = reduced_coupling_deque[0][0]
             list_of_layers_of_pairs = []
             tally_used_pairs = []
+
             self.reduced_coupling_list_to_del = convert_dict_to_list(
                 self.reduced_coupling_map
             )
@@ -342,16 +415,35 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             self.dict_of_layers_of_pairs[key][
                 "unused"
             ] = self.reduced_coupling_list_to_del
-
+            len_of_listoflayersofpairs = len(list_of_layers_of_pairs)
             # Check to see if the list_of_layer_pairs are unique and
-            # gather them in self.reduced_layers_of_pairs.
+            # gather them in self.unique_layers_of_pairs.
             if list_of_layers_of_pairs:
-                if list_of_layers_of_pairs not in self.reduced_layers_of_pairs:
-                    self.reduced_layers_of_pairs.append(list_of_layers_of_pairs)
+                if list_of_layers_of_pairs not in self.unique_layers_of_pairs:
+                    self.unique_layers_of_pairs.append(list_of_layers_of_pairs)
+                    if not self.min_number_of_layers:
+                        self.min_number_of_layers = len_of_listoflayersofpairs
+                    elif self.min_number_of_layers > len_of_listoflayersofpairs:
+                        self.min_number_of_layers = len_of_listoflayersofpairs
                 else:
                     a = 5  # For breakpoint
 
-        return self.dict_of_layers_of_pairs, self.reduced_layers_of_pairs
+            # Each set of layers should be at the minimum amount, or we don't want it.
+            self.min_layer_unique_layer_of_pairs = [
+                layer_set
+                for layer_set in self.unique_layers_of_pairs
+                if len(layer_set) == self.min_number_of_layers
+            ]
+
+        if self.qubit_distance == 2:
+            self.n2_combine_layers_populate()
+
+        return (
+            self.dict_of_layers_of_pairs,
+            self.unique_layers_of_pairs,
+            self.min_layer_unique_layer_of_pairs,
+            self.n2_combined_layers_min,
+        )
 
     def handle_pair(
         self, first_qubit: int, second_qubit: int, grouping_pair: list
@@ -381,20 +473,27 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             a_pair_flipped in self.reduced_coupling_list_to_del
             or a_pair in self.reduced_coupling_list_to_del
         ):
-            grouping_pair.append(a_pair_sorted)
-            self.tally_used_qubits.append(first_qubit)
-            self.tally_used_qubits.append(second_qubit)
-            # Reduce to a new list without qubits used for a_pair_sorted
-            self.reduced_coupling_list_to_del = [
-                (q1, q2)
-                for (q1, q2) in self.reduced_coupling_list_to_del
-                if not (
-                    first_qubit == q1
-                    or first_qubit == q2
-                    or second_qubit == q1
-                    or second_qubit == q2
+            if (
+                self.qubit_distance > 2
+                and self.check_for_adjacent_qubits(
+                    grouping_pair, first_qubit, second_qubit
                 )
-            ]
+                or self.qubit_distance == 2
+            ):
+                grouping_pair.append(a_pair_sorted)
+                self.tally_used_qubits.append(first_qubit)
+                self.tally_used_qubits.append(second_qubit)
+                # Reduce to a new list without qubits used for a_pair_sorted
+                self.reduced_coupling_list_to_del = [
+                    (q1, q2)
+                    for (q1, q2) in self.reduced_coupling_list_to_del
+                    if not (
+                        first_qubit == q1
+                        or first_qubit == q2
+                        or second_qubit == q1
+                        or second_qubit == q2
+                    )
+                ]
 
         # If the qubit has already been used, no point is testing pairs with it.
         if self.tally_used_qubits:
@@ -418,85 +517,123 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                         a_pair_test_flipped in self.reduced_coupling_list_to_del
                         or a_pair_test in self.reduced_coupling_list_to_del
                     ):
-                        grouping_pair.append(a_pair_test_sorted)
-                        self.tally_used_qubits.append(qubit_start)
-                        self.tally_used_qubits.append(qubit_test)
-
-                        # Reduce to a new list without qubits used for a_pair
-                        self.reduced_coupling_list_to_del = [
-                            (q1, q2)
-                            for (q1, q2) in self.reduced_coupling_list_to_del
-                            if not (
-                                qubit_start == q1
-                                or qubit_start == q2
-                                or qubit_test == q1
-                                or qubit_test == q2
+                        if (
+                            self.qubit_distance > 2
+                            and self.check_for_adjacent_qubits(
+                                grouping_pair, qubit_start, qubit_test
                             )
-                        ]
+                            or self.qubit_distance == 2
+                        ):
+                            grouping_pair.append(a_pair_test_sorted)
+                            self.tally_used_qubits.append(qubit_start)
+                            self.tally_used_qubits.append(qubit_test)
 
-                        # Need the if statement for the last case of double for loops.
-                        if a_pair_sorted in grouping_pair:
-                            grouping_pair = self.handle_pair(
-                                qubit_start, qubit_test, grouping_pair
-                            )
+                            # Reduce to a new list without qubits used for a_pair
+                            self.reduced_coupling_list_to_del = [
+                                (q1, q2)
+                                for (q1, q2) in self.reduced_coupling_list_to_del
+                                if not (
+                                    qubit_start == q1
+                                    or qubit_start == q2
+                                    or qubit_test == q1
+                                    or qubit_test == q2
+                                )
+                            ]
 
-                        break
+                            # Need the if statement for the last case of double for loops.
+                            if a_pair_sorted in grouping_pair:
+                                grouping_pair = self.handle_pair(
+                                    qubit_start, qubit_test, grouping_pair
+                                )
+
+                            break
 
         return grouping_pair
 
+    def check_for_adjacent_qubits(self, grouping_pair: list, q1: int, q2: int) -> bool:
+        # Since we are searching on all possible directions, we need to confirm we don't
+        # select an adjacent qubit based on self.qubit_distance
+        if not grouping_pair:
+            # Since grouping pair is empty, add the pair to grouping pair.
+            return True
 
-def get_outward_coupling_map(coupling_map, ent_map, start_qubits):
-    """
-    Recursive method for rearranging a coupling map to generate an entanglement
-    map outward from a set of starting qubit(s). The new entanglement map is then
-    suitable for use by canned algorithms such as TwoLocal in the entanglement= kwarg.
+        # Check for q1.
+        for used_qubit in self.tally_used_qubits:
+            if (
+                self.entangle_matrix[
+                    self.initial_layout_lookup[used_qubit],
+                    self.initial_layout_lookup[q1],
+                ]
+                == 1
+            ):
+                return False
 
-    Args:
-        coupling_map: coupling map of backend
-                    (TODO: need to currently deepcopy this before calling method)
-        ent_map: rearranged coupling map used for generating entanglement in correct order
-                (TODO: currently take empty list)
-        start_qubits: qubits to find the pairs containing
-                        TODO: currently takes [middle_qubit])
-    """
-    next_qubits = []
-    for pair in [pair for pair in coupling_map if pair[0] in start_qubits]:
-        next_qubits.append(pair[1])
-        ent_map.append(pair)
-        coupling_map.remove(pair)
-        coupling_map.remove(list(reversed(pair)))
+        # Check for q2.
+        for used_qubit in self.tally_used_qubits:
+            if (
+                self.entangle_matrix[
+                    self.initial_layout_lookup[used_qubit],
+                    self.initial_layout_lookup[q2],
+                ]
+                == 1
+            ):
+                return False
 
-    if next_qubits:
-        get_outward_coupling_map(coupling_map, ent_map, next_qubits)
+        return True
 
+    def n2_combine_layers_populate(self):
+        for set_layers in self.min_layer_unique_layer_of_pairs:
+            self.temp_sorted_by_len = sorted(set_layers, key=len, reverse=True)
 
-def get_layered_ansatz_coupling_map(coupling_map):
-    """
-    Method to layer entangling gates of an ansatz type into those that can be executed
-    simultaneously. Currently assumes spacing of 1 qubit within a layer.
-    TODO: extend to more than single-qubit spacing
-    """
-    # TODO: may want to make the below directional to support certain backends, i.e. ibm_sherbrooke
-    ordered_cm = [pair for pair in coupling_map if pair[0] < pair[1]]
+            len_list = len(self.temp_sorted_by_len)
 
-    # split entanglement map into sets of non-overlapping qubits
-    ent_map = []
-    for pair in ordered_cm:
-        if ent_map == []:
-            ent_map.append([pair])
-        elif all(
-            [
-                any([pair[0] in epair or pair[1] in epair for epair in emap])
-                for emap in ent_map
-            ]
-        ):
-            ent_map.append([pair])
-        else:
-            for emap in ent_map:
-                if all(
-                    [pair[0] not in epair and pair[1] not in epair for epair in emap]
-                ):
-                    emap.append(pair)
-                    break
+            # put the compressed list into self.temp_sorted_by_len
+            self.n2_compress(check_index=len_list - 1, length=len_list)
+            len_n2_compressed = len(self.temp_sorted_by_len)
+            if not self.min_number_n2_compress:
+                # This is for the first time through.
+                self.min_number_n2_compress = len_n2_compressed
+            elif self.min_number_n2_compress > len_n2_compressed:
+                self.min_number_n2_compress = len_n2_compressed
 
-    return ent_map
+            if self.temp_sorted_by_len not in self.n2_combined_layers:
+                self.n2_combined_layers.append(self.temp_sorted_by_len)
+            else:
+                a = 5  # To set a breakpoint.
+
+        # Reduce self.n2_combined_layers to have len of self.min_number_n2_compress only.
+        self.n2_combined_layers_min = [
+            layer_set
+            for layer_set in self.n2_combined_layers
+            if len(layer_set) == self.min_number_n2_compress
+        ]
+
+    def n2_compress(self, check_index: int, length: int):
+        for compare_index in reversed(range(check_index + 1)):
+            for start_index in range(compare_index):
+                start_with_qubits = set()
+                last_qubits = set()
+
+                for q1, q2 in self.temp_sorted_by_len[start_index]:
+                    start_with_qubits.add(q1)
+                    start_with_qubits.add(q2)
+                for q3, q4 in self.temp_sorted_by_len[compare_index]:
+                    last_qubits.add(q3)
+                    last_qubits.add(q4)
+
+                if start_with_qubits.intersection(last_qubits):
+                    # There are overlap of qubits.
+                    pass
+                else:
+                    # Qubits in the two layers do not overlap so can add the two layers.
+                    # Also, remove one of the layers.
+                    self.temp_sorted_by_len[start_index] = (
+                        self.temp_sorted_by_len[start_index]
+                        + self.temp_sorted_by_len[compare_index]
+                    )
+                    del self.temp_sorted_by_len[compare_index]
+
+                    self.n2_compress(check_index=length - 2, length=length - 1)
+
+                    return  # Iterating anymore would be working wrong self.temp_sorted_by_len.
+        return
