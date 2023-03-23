@@ -551,8 +551,17 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         return grouping_pair
 
     def check_for_adjacent_qubits(self, grouping_pair: list, q1: int, q2: int) -> bool:
-        # Since we are searching on all possible directions, we need to confirm we don't
-        # select an adjacent qubit based on self.qubit_distance
+        """This is a check when creating layers and self.qubit_distance > 2.  Since we are searching on all possible directions, we need to confirm we don't
+        select an adjacent qubit based on self.qubit_distance
+
+        Args:
+            grouping_pair (list): The layer which (q1,q2) could be placed in.
+            q1 (int): One qubit of the coupling pair.
+            q2 (int): Second qubit of the coupling pair.
+
+        Returns:
+            bool: This only give a true or false after checking the matrix of coupling pairs.
+        """
         if not grouping_pair:
             # Since grouping pair is empty, add the pair to grouping pair.
             return True
@@ -582,6 +591,7 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         return True
 
     def n2_combine_layers_populate(self):
+        """Given a set of layers for n=2, one could combine the layers since the can be adjacent. Use self.min_layer_unique_layer_of_pairs.  For each set, if possible, compress them.  Keep track of the size of sets and keep the smallest sized sets. Also, remove any duplicate sets."""
         for set_layers in self.min_layer_unique_layer_of_pairs:
             self.temp_sorted_by_len = sorted(set_layers, key=len, reverse=True)
 
@@ -609,6 +619,15 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         ]
 
     def n2_compress(self, check_index: int, length: int):
+        """This is meant to be used recursively for each set of layers.
+        Sort each layer from largest to smallest.  Then look at the smallest and
+        sequentially check the other layers to see if they can be combined.  If so, then
+        restart the method again.
+
+        Args:
+            check_index (int): If compressed, the size of set changes. Pass updated information to next recursive call.
+            length (int): If compressed, the size of set changes. Pass updated information to next recursive call.
+        """
         for compare_index in reversed(range(check_index + 1)):
             for start_index in range(compare_index):
                 start_with_qubits = set()
@@ -635,5 +654,6 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
 
                     self.n2_compress(check_index=length - 2, length=length - 1)
 
-                    return  # Iterating anymore would be working wrong self.temp_sorted_by_len.
+                    # Iterating anymore would be working wrong self.temp_sorted_by_len.
+                    return
         return
