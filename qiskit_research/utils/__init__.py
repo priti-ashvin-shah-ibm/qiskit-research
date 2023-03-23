@@ -25,6 +25,7 @@ from qiskit_research.utils.backend import (
     get_layered_ansatz_coupling_map,
     PopulateCouplingMapDictAndMatrixDict,
     GetEntanglingMapFromInitLayout,
+    PlotLayerData,
 )
 from qiskit_research.utils.dynamical_decoupling import (
     add_pulse_calibrations,
@@ -58,6 +59,7 @@ __all__ = [
     "matrix_to_dict",
     "PopulateCouplingMapDictAndMatrixDict",
     "GetEntanglingMapFromInitLayout",
+    "PlotLayerData",
     "get_outward_coupling_map",
     "get_layered_ansatz_coupling_map",
     "add_pulse_calibrations",

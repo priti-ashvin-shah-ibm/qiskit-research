@@ -22,6 +22,10 @@ import numpy as np
 from numpy.linalg import matrix_power
 from collections import deque
 
+# To plot the layers with a set for Ansatz.
+from qiskit.visualization import plot_circuit_layout
+from qiskit import QuantumCircuit, transpile
+
 
 def get_backend(
     name: str, provider: Optional[Provider], seed_simulator: Optional[int] = None
@@ -657,3 +661,58 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                     # Iterating anymore would be working wrong self.temp_sorted_by_len.
                     return
         return
+
+
+class PlotLayerData:
+    """Visualize the layers for Ansatz."""
+
+    def __init__(self, backend) -> None:
+        """Provide the backend.
+
+        Args:
+            backend (_type_): _description_
+        """
+        self.backend = backend
+        self.config = backend.configuration()
+        self.n_qubits = self.config.n_qubits
+        self.init_layout = list(range(self.n_qubits))
+        self.list_of_layer_plots = []
+
+    def plot_one_set_of_layers(self, a_set: list) -> list:
+        """Give a set of layers.  A plot for each layer
+        using self.backend will be generated.
+
+        Args:
+            a_set (list): List of lists.  Each list has tuple of coupling pair.
+
+        Returns:
+            list: Reference to each plot within the list.
+        """
+
+        for layer in a_set:
+            layer_qubits = []
+            for q1, q2 in layer:
+                layer_qubits.append(q1)
+                layer_qubits.append(q2)
+
+            n_layer_qubits = len(layer_qubits)
+            qc = QuantumCircuit(n_layer_qubits)
+
+            idx_0 = 0
+            idx_1 = 1
+            for q1, q2 in layer:
+                qc.cx(idx_0, idx_1)
+                idx_0 += 2
+                idx_1 += 2
+
+            new_qc_lv3 = transpile(
+                qc,
+                initial_layout=layer_qubits,
+                backend=self.backend,
+                optimization_level=0,
+            )
+
+            a_plot = plot_circuit_layout(new_qc_lv3, backend=self.backend)
+            self.list_of_layer_plots.append(a_plot)
+
+        return self.list_of_layer_plots
