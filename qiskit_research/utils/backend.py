@@ -215,8 +215,16 @@ class PopulateCouplingMapDictAndMatrixDict:
         self.initial_layout_lookup = (
             None  # Denotes the qubits for entangle_result and entangle_matrix.
         )
-        self.entangled_result = None  # The result of matrix multiplication.
+
+        # Set up matrix before multiplying to exponent=self.qubit_distance.
         self.entangle_matrix = None
+
+        # Hold intermediate results for matrix multiplication.
+        self.list_entangle_results = []
+
+        # Hold result of self.entangle_matrix to the exponent self.qubit_distance
+        self.entangled_result = None  # The result of matrix multiplication.
+
         # Populate a dict to contain the information about the reduced coupling map.
         self.reduced_coupling_map = defaultdict(list)
         self.create_entangle_matrix()
@@ -315,10 +323,26 @@ class PopulateCouplingMapDictAndMatrixDict:
                     # This dict has both the key and value limited by init_layout.
                     self.reduced_coupling_map[first_qubit].append(second_qubit)
 
-        self.entangled_result = matrix_power(self.entangle_matrix, self.qubit_distance)
+        self._build_intermediate_matrices()
         entangling_dict = matrix_to_dict(self.entangled_result, self.sorted_init_layout)
 
         return entangling_dict
+
+    def _build_intermediate_matrices(self):
+        """Keep a list of intermediate matrices since we need to use the intermediate matrices to check if coupling pair is spaced apart as desired."""
+
+        # Index 0
+        self.list_entangle_results.append(self.entangle_matrix)
+
+        for each_mult in range(1, self.qubit_distance):
+            # Places matrix in index each_mult.
+            self.list_entangle_results.append(
+                np.matmul(
+                    self.list_entangle_results[each_mult - 1], self.entangle_matrix
+                )
+            )
+        # test_to_compare = matrix_power(self.entangle_matrix, self.qubit_distance)
+        self.entangled_result = self.list_entangle_results[self.qubit_distance - 1]
 
 
 class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
@@ -570,27 +594,28 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             # Since grouping pair is empty, add the pair to grouping pair.
             return True
 
-        # Check for q1.
-        for used_qubit in self.tally_used_qubits:
-            if (
-                self.entangle_matrix[
-                    self.initial_layout_lookup[used_qubit],
-                    self.initial_layout_lookup[q1],
-                ]
-                == 1
-            ):
-                return False
+        for index in range(self.qubit_distance - 2):
+            # Check for q1.
+            for used_qubit in self.tally_used_qubits:
+                if (
+                    self.list_entangle_results[index][
+                        self.initial_layout_lookup[used_qubit],
+                        self.initial_layout_lookup[q1],
+                    ]
+                    == 1
+                ):
+                    return False
 
-        # Check for q2.
-        for used_qubit in self.tally_used_qubits:
-            if (
-                self.entangle_matrix[
-                    self.initial_layout_lookup[used_qubit],
-                    self.initial_layout_lookup[q2],
-                ]
-                == 1
-            ):
-                return False
+            # Check for q2.
+            for used_qubit in self.tally_used_qubits:
+                if (
+                    self.list_entangle_results[index][
+                        self.initial_layout_lookup[used_qubit],
+                        self.initial_layout_lookup[q2],
+                    ]
+                    == 1
+                ):
+                    return False
 
         return True
 
