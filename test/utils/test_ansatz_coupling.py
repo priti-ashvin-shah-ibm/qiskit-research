@@ -92,7 +92,9 @@ class TestEntanglingMap(unittest.TestCase):
         )
         (
             dict_of_layers_of_pairs,
-            reduced_layers_of_pairs,
+            unique_layers_of_pairs,
+            min_layer_unique_layer_of_pairs,
+            combined_layers_min,
         ) = new_layers.pairs_from_n_and_reduced_coupling_map()
 
         # Then compare to expected results using https://docs.python.org/3/library/unittest.html.
@@ -106,7 +108,9 @@ class TestEntanglingMap(unittest.TestCase):
         )
         (
             dict_of_layers_of_pairs,
-            reduced_layers_of_pairs,
+            unique_layers_of_pairs,
+            min_layer_unique_layer_of_pairs,
+            combined_layers_min,
         ) = new_layers.pairs_from_n_and_reduced_coupling_map()
 
         # Then compare to expected results using https://docs.python.org/3/library/unittest.html.
