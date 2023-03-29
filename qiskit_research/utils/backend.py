@@ -369,11 +369,11 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         self.unique_layers_of_pairs = []  # Will be a lists of lists which is sorted.
         # Will be list of lists with minimum number of layers.
         self.min_layer_unique_layer_of_pairs = []
-        self.n2_combined_layers = []
-        self.n2_combined_layers_min = []
+        self.combined_layers = []
+        self.combined_layers_min = []
         self.temp_sorted_by_len = []
         # Keeps track of the smallest len within self.temp_sorted_by_len
-        self.min_number_n2_compress = None
+        self.min_number_compress = None
 
         self.reduced_coupling_list_to_del = None
         self.tally_used_qubits = []
@@ -463,14 +463,13 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                 if len(layer_set) == self.min_number_of_layers
             ]
 
-        if self.qubit_distance == 2:
-            self.n2_combine_layers_populate()
+        self.combine_layers_populate()
 
         return (
             self.dict_of_layers_of_pairs,
             self.unique_layers_of_pairs,
             self.min_layer_unique_layer_of_pairs,
-            self.n2_combined_layers_min,
+            self.combined_layers_min,
         )
 
     def handle_pair(
@@ -619,33 +618,115 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
 
         return True
 
-    def n2_combine_layers_populate(self):
-        """Given a set of layers for n=2, one could combine the layers since the can be adjacent. Use self.min_layer_unique_layer_of_pairs.  For each set, if possible, compress them.  Keep track of the size of sets and keep the smallest sized sets. Also, remove any duplicate sets."""
+    def can_not_combine_layers(self, start_with_qubits: set, last_qubits: set) -> bool:
+        """Are qubits being too close to each other between the two lists?  If they are too close,
+        they can not be combined.
+
+        Args:
+            start_with_qubits (set): Qubits from one layer
+            last_qubits (set): Qubits from a different layer to compare with.
+
+        Returns:
+            bool:   True if qubits are too close.
+                    False if the two sets are islands with enough distance.
+        """
+        # Check every matrix that for spacing.
+        #  If too close, they can not be combined.
+        for index in range(self.qubit_distance - 2):
+
+            for start_qubit in start_with_qubits:
+                for last_qubit in last_qubits:
+                    if (
+                        self.list_entangle_results[index][
+                            self.initial_layout_lookup[start_qubit],
+                            self.initial_layout_lookup[last_qubit],
+                        ]
+                        == 1
+                    ):
+                        return True
+
+        return False
+
+    def combine_layers_populate(self):
+        """Given a set of layers, one could combine the layers; like combining islands.
+        Use self.min_layer_unique_layer_of_pairs.  For each set, if possible, compress them.
+        Keep track of the size of sets and keep the smallest sized sets. Also, remove any duplicate sets."""
+
         for set_layers in self.min_layer_unique_layer_of_pairs:
             self.temp_sorted_by_len = sorted(set_layers, key=len, reverse=True)
 
             len_list = len(self.temp_sorted_by_len)
 
             # put the compressed list into self.temp_sorted_by_len
-            self.n2_compress(check_index=len_list - 1, length=len_list)
-            len_n2_compressed = len(self.temp_sorted_by_len)
-            if not self.min_number_n2_compress:
-                # This is for the first time through.
-                self.min_number_n2_compress = len_n2_compressed
-            elif self.min_number_n2_compress > len_n2_compressed:
-                self.min_number_n2_compress = len_n2_compressed
-
-            if self.temp_sorted_by_len not in self.n2_combined_layers:
-                self.n2_combined_layers.append(self.temp_sorted_by_len)
+            if self.qubit_distance == 2:
+                self.n2_compress(check_index=len_list - 1, length=len_list)
             else:
-                a = 5  # To set a breakpoint.
+                self.matrix_compress(check_index=len_list - 1, length=len_list)
 
-        # Reduce self.n2_combined_layers to have len of self.min_number_n2_compress only.
-        self.n2_combined_layers_min = [
+            len_compressed = len(self.temp_sorted_by_len)
+            if not self.min_number_compress:
+                # This is for the first time through.
+                self.min_number_compress = len_compressed
+            elif self.min_number_compress > len_compressed:
+                self.min_number_compress = len_compressed
+
+            if self.temp_sorted_by_len not in self.combined_layers:
+                self.combined_layers.append(self.temp_sorted_by_len)
+            # else:
+            #     a = 5  # To set a breakpoint.
+
+        # Reduce self.combined_layers to have len of self.min_number_compress only.
+        self.combined_layers_min = [
             layer_set
-            for layer_set in self.n2_combined_layers
-            if len(layer_set) == self.min_number_n2_compress
+            for layer_set in self.combined_layers
+            if len(layer_set) == self.min_number_compress
         ]
+
+    def matrix_compress(self, check_index: int, length: int):
+        """Use this to see if the layers can be combined using the result of matrix multiplication
+        based on self.qubit_distance.
+
+        Args:
+            check_index (int): If compressed, the size of set changes. Pass updated information to next recursive call.
+            length (int): If compressed, the size of set changes. Pass updated information to next recursive call.
+        """
+        for compare_index in reversed(range(check_index + 1)):
+            last_qubits = set()
+            # Gather qubits for the last layer which is compared to layers before it.
+            for q3, q4 in self.temp_sorted_by_len[compare_index]:
+                last_qubits.add(q3)
+                last_qubits.add(q4)
+
+            for start_index in range(compare_index):
+                start_with_qubits = set()
+                # Gather the qubits for start layer.
+                for q1, q2 in self.temp_sorted_by_len[start_index]:
+                    start_with_qubits.add(q1)
+                    start_with_qubits.add(q2)
+
+                # Check matrixes for each pair comparison.
+
+                if start_with_qubits.intersection(last_qubits):
+                    # There is/are overlap of qubit(s).
+                    pass
+
+                elif self.can_not_combine_layers(start_with_qubits, last_qubits):
+                    # They  qubits are too close to each other, so can not combine layers.
+                    pass
+
+                else:
+                    # Qubits in the two layers do not overlap so can add the two layers.
+                    # Also, remove one of the layers.
+                    self.temp_sorted_by_len[start_index] = (
+                        self.temp_sorted_by_len[start_index]
+                        + self.temp_sorted_by_len[compare_index]
+                    )
+                    del self.temp_sorted_by_len[compare_index]
+
+                    self.matrix_compress(check_index=length - 2, length=length - 1)
+
+                    # Iterating anymore would be working wrong self.temp_sorted_by_len.
+                    return
 
     def n2_compress(self, check_index: int, length: int):
         """This is meant to be used recursively for each set of layers.
@@ -737,7 +818,9 @@ class PlotLayerData:
                 optimization_level=0,
             )
 
-            a_plot = plot_circuit_layout(new_qc_lv3, backend=self.backend)
+            a_plot = plot_circuit_layout(
+                new_qc_lv3, backend=self.backend, view="physical"
+            )
             self.list_of_layer_plots.append(a_plot)
 
         return self.list_of_layer_plots
