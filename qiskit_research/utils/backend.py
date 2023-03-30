@@ -97,6 +97,7 @@ def get_layered_ansatz_coupling_map(coupling_map):
     return ent_map
 
 
+
 def convert_list_map_to_dict(list_map: list) -> defaultdict:
     """Reorganize the coupling map since qubits may not be symmetric.
 
