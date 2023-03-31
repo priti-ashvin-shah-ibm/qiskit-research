@@ -83,17 +83,19 @@ class TestEntanglingMap(unittest.TestCase):
             38,
         ]  # Meaningful list for FakeWashington
 
+        # For index 15
         self.n2_combined_layers_min = [
-            [(20, 33), (21, 22), (23, 24), (34, 43), (39, 40), (41, 53)],
-            [(15, 22), (20, 21), (24, 34), (33, 39), (40, 41), (42, 43)],
-            [(22, 23), (24, 25), (38, 39), (19, 20), (41, 42), (43, 44)],
+            [[15, 22], [20, 21], [24, 34], [33, 39], [40, 41], [42, 43]],
+            [[19, 20], [21, 22], [23, 24], [34, 43], [39, 40], [41, 42]],
+            [[20, 33], [38, 39], [43, 44], [41, 53], [22, 23], [24, 25]],
         ]
 
+        # For index 5
         self.n3_combined_layers_min = [
-            [(21, 22), (24, 25), (33, 39), (41, 53), (43, 44)],
-            [(15, 22), (19, 20), (24, 34), (38, 39), (41, 42)],
-            [(20, 21), (23, 24), (39, 40), (42, 43)],
-            [(20, 33), (22, 23), (34, 43), (40, 41)],
+            [[15, 22], [19, 20], [24, 25], [39, 40], [42, 43]],
+            [[20, 21], [23, 24], [38, 39], [41, 53], [43, 44]],
+            [[20, 33], [22, 23], [34, 43], [40, 41]],
+            [[21, 22], [24, 34], [33, 39], [41, 42]],
         ]
 
     def tearDown(self):
@@ -124,7 +126,7 @@ class TestEntanglingMap(unittest.TestCase):
         self.assertEqual(len(min_layer_unique_layer_of_pairs), 11)
         self.assertEqual(len(unique_layers_of_pairs), 17)
         self.assertEqual(len(dict_of_layers_of_pairs), 18)
-        self.assertListEqual(self.n2_combined_layers_min, combined_layers_min[0])
+        self.assertListEqual(self.n2_combined_layers_min, combined_layers_min[15])
 
     def test_get_entangling_map_3(self, qubit_distance: int = 3):
         """Ensure code changes don't change basic output. This is just a sanity check.
@@ -150,7 +152,7 @@ class TestEntanglingMap(unittest.TestCase):
         self.assertEqual(len(min_layer_unique_layer_of_pairs), 6)
         self.assertEqual(len(unique_layers_of_pairs), 16)
         self.assertEqual(len(dict_of_layers_of_pairs), 18)
-        self.assertListEqual(self.n3_combined_layers_min, combined_layers_min[0])
+        self.assertListEqual(self.n3_combined_layers_min, combined_layers_min[5])
 
     @unittest.expectedFailure
     def test_bad_coupling_map(self, qubit_distance: int = 3):

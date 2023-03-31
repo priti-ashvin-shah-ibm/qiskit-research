@@ -144,7 +144,7 @@ def convert_dict_to_list(coupling_map_dict: defaultdict) -> list:
     coupling_map_list = []
     for first_qubit, second_qubit_list in coupling_map_dict.items():
         for second_qubit in second_qubit_list:
-            coupling_map_list.append((first_qubit, second_qubit))
+            coupling_map_list.append([first_qubit, second_qubit])
 
     return coupling_map_list
 
@@ -429,11 +429,11 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                             self.reduced_coupling_map
                         )
                         self.reduced_coupling_list_to_del = [
-                            (q1, q2)
-                            for (q1, q2) in self.reduced_coupling_list_to_del
+                            [q1, q2]
+                            for q1, q2 in self.reduced_coupling_list_to_del
                             if not (
-                                (q1, q2) in tally_used_pairs
-                                or (q2, q1) in tally_used_pairs
+                                [q1, q2] in tally_used_pairs
+                                or [q2, q1] in tally_used_pairs
                             )
                         ]
 
@@ -493,9 +493,9 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             Returns:
             list: List of Tuples which are a pair that are n away from each other.
         """
-        a_pair = (first_qubit, second_qubit)
-        a_pair_flipped = (second_qubit, first_qubit)
-        a_pair_sorted = tuple(sorted(a_pair))
+        a_pair = [first_qubit, second_qubit]
+        a_pair_flipped = [second_qubit, first_qubit]
+        a_pair_sorted = sorted(a_pair)
         n_away_first_qubit_list = self.entangling_dict[first_qubit]
         n_away_second_qubit_list = self.entangling_dict[second_qubit]
 
@@ -516,8 +516,8 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                 self.tally_used_qubits.append(second_qubit)
                 # Reduce to a new list without qubits used for a_pair_sorted
                 self.reduced_coupling_list_to_del = [
-                    (q1, q2)
-                    for (q1, q2) in self.reduced_coupling_list_to_del
+                    [q1, q2]
+                    for q1, q2 in self.reduced_coupling_list_to_del
                     if not (
                         first_qubit == q1
                         or first_qubit == q2
@@ -540,9 +540,9 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         if a_pair_sorted in grouping_pair or a_pair in grouping_pair:
             for qubit_start in n_away_first_qubit_list:
                 for qubit_test in n_away_second_qubit_list:
-                    a_pair_test = (qubit_start, qubit_test)
-                    a_pair_test_flipped = (qubit_test, qubit_start)
-                    a_pair_test_sorted = tuple(sorted(a_pair_test))
+                    a_pair_test = [qubit_start, qubit_test]
+                    a_pair_test_flipped = [qubit_test, qubit_start]
+                    a_pair_test_sorted = sorted(a_pair_test)
 
                     if (
                         a_pair_test_flipped in self.reduced_coupling_list_to_del
@@ -561,7 +561,7 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
 
                             # Reduce to a new list without qubits used for a_pair
                             self.reduced_coupling_list_to_del = [
-                                (q1, q2)
+                                [q1, q2]
                                 for (q1, q2) in self.reduced_coupling_list_to_del
                                 if not (
                                     qubit_start == q1
