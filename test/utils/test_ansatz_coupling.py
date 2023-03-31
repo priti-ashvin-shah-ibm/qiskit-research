@@ -60,7 +60,9 @@ class TestEntanglingMap(unittest.TestCase):
             3,
             400,
         }  # This was test for raise error.
-        self.the_initial_layout_set = {
+
+        # The list is out of order on purpose for testing.
+        self.the_initial_layout_set = [
             20,
             21,
             22,
@@ -79,7 +81,7 @@ class TestEntanglingMap(unittest.TestCase):
             44,
             53,
             38,
-        }  # Meaningful list for FakeWashington
+        ]  # Meaningful list for FakeWashington
 
         self.n2_combined_layers_min = [
             [(20, 33), (21, 22), (23, 24), (34, 43), (39, 40), (41, 53)],
@@ -118,7 +120,7 @@ class TestEntanglingMap(unittest.TestCase):
             min_layer_unique_layer_of_pairs,
             combined_layers_min,
         ) = new_layers.pairs_from_n_and_reduced_coupling_map()
-        self.assertEqual(len(combined_layers_min), 11)
+        self.assertEqual(len(combined_layers_min), 16)
         self.assertEqual(len(min_layer_unique_layer_of_pairs), 11)
         self.assertEqual(len(unique_layers_of_pairs), 17)
         self.assertEqual(len(dict_of_layers_of_pairs), 18)

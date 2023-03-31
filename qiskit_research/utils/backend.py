@@ -97,7 +97,6 @@ def get_layered_ansatz_coupling_map(coupling_map):
     return ent_map
 
 
-
 def convert_list_map_to_dict(list_map: list) -> defaultdict:
     """Reorganize the coupling map since qubits may not be symmetric.
 
@@ -187,12 +186,12 @@ def matrix_to_dict(
 class PopulateCouplingMapDictAndMatrixDict:
     """Return entangling_map_dict and reduced_coupling_list."""
 
-    def __init__(self, coupling_map: list, init_layout: set, qubit_distance: int = 2):
+    def __init__(self, coupling_map: list, init_layout: list, qubit_distance: int = 2):
         """Prepare the data so that logic to pair the qubits can be implemented.
 
         Args:
             coupling_map (list): From provider's backend.
-            init_layout (set): Qubit_ids which are desired and a subset of available
+            init_layout (list): Qubit_ids which are desired and a subset of available
                                 qubits from coupling map.
             qubit_distance (int, optional): Determines exponent for matrix multiplication. Defaults to 2.
         """
@@ -351,12 +350,12 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
     according to desired Ansatz.
     """
 
-    def __init__(self, coupling_map: list, init_layout: set, qubit_distance: int = 2):
+    def __init__(self, coupling_map: list, init_layout: list, qubit_distance: int = 2):
         """Pass arguments to parent init and denote variable to hold result of sorting.
 
         Args:
             coupling_map (list): From provider's backend.
-            init_layout (set): Qubit_ids which are desired and a subset of available
+            init_layout (list): Qubit_ids which are desired and a subset of available
                                 qubits from coupling map.
             qubit_distance (int, optional): Determines exponent for matrix multiplication. Defaults to 2.
         """
@@ -458,6 +457,10 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                     a = 5  # For breakpoint
 
             # Each set of layers should be at the minimum amount, or we don't want it.
+            # Within self.combine_layers_populate() we remove any copies when determining
+            # self.combined_layers_min.  So, thinking no-one will want to use
+            # self.min_layer_unique_layer_of_pairs for other than looking at
+            # what happens along the way of getting self.combined_layers_min.
             self.min_layer_unique_layer_of_pairs = [
                 layer_set
                 for layer_set in self.unique_layers_of_pairs
@@ -650,10 +653,10 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
 
     def combine_layers_populate(self):
         """Given a set of layers, one could combine the layers; like combining islands.
-        Use self.min_layer_unique_layer_of_pairs.  For each set, if possible, compress them.
+        Use self.unique_layers_of_pairs.  For each set, if possible, compress them.
         Keep track of the size of sets and keep the smallest sized sets. Also, remove any duplicate sets."""
 
-        for set_layers in self.min_layer_unique_layer_of_pairs:
+        for set_layers in self.unique_layers_of_pairs:
             self.temp_sorted_by_len = sorted(set_layers, key=len, reverse=True)
 
             len_list = len(self.temp_sorted_by_len)
@@ -673,8 +676,6 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
 
             if self.temp_sorted_by_len not in self.combined_layers:
                 self.combined_layers.append(self.temp_sorted_by_len)
-            # else:
-            #     a = 5  # To set a breakpoint.
 
         # Reduce self.combined_layers to have len of self.min_number_compress only.
         self.combined_layers_min = [
