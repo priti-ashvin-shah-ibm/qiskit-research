@@ -13,6 +13,7 @@
 """Test circuit layering."""
 
 import unittest
+import pdb
 
 from qiskit import transpile
 from qiskit.circuit import QuantumCircuit
@@ -94,7 +95,6 @@ class TestEntanglingMap(unittest.TestCase):
 
     def tearDown(self):
         """Tie any loose ends after each test."""
-        pass
 
     def test_get_entangling_map_2(self, distance: int = 0):
         """Ensure code changes don't change basic output. This is just a sanity check.
@@ -156,7 +156,7 @@ class TestEntanglingMap(unittest.TestCase):
         Args:
             distance (int, optional): Desire qubit pairs to be 1 or greater distance apart.
         """
-        new_layers = GetEntanglingMapFromInitLayout(
+        _ = GetEntanglingMapFromInitLayout(
             self.the_coupling_map_list,
             self.the_initial_layout_set_wrong,
             distance=distance,
@@ -164,6 +164,11 @@ class TestEntanglingMap(unittest.TestCase):
 
 
 class TestLayeredPauliGates(unittest.TestCase):
+    """_summary_
+
+    Args:
+        unittest (_type_): For unit testing.
+    """
 
     num_qubits = 9
     op = PauliSumOp.from_list(
@@ -189,7 +194,6 @@ class TestLayeredPauliGates(unittest.TestCase):
             ExpandBlockOperators(block_ops=block_ops),
         ]
     ).run(qc_l)
-    import pdb
 
     pdb.set_trace()
 
