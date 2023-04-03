@@ -191,7 +191,8 @@ class PopulateCouplingMapDictAndMatrixDict:
             coupling_map (list): From provider's backend.
             init_layout (list): Qubit_ids which are desired and a subset of available
                                 qubits from coupling map.
-            qubit_distance (int, optional): Determines exponent for matrix multiplication of the adjacency matrix. Defaults to 2.
+            qubit_distance (int, optional): Determines exponent for matrix multiplication
+                                of the adjacency matrix. Defaults to 2.
         """
         self.coupling_map = coupling_map
         # Used to determine self.the_diff
@@ -201,7 +202,8 @@ class PopulateCouplingMapDictAndMatrixDict:
         self.coupling_map_dict = None
 
         self.init_layout = init_layout
-        # sorted_init_layout (list): Can use the index of the qubits to determine layout of matrix axis.
+        # sorted_init_layout (list): Can use the index of the qubits to determine
+        #                               layout of matrix axis.
         self.sorted_init_layout = None
 
         # the_diff (set): Qubits that are within the coupling_map VS init_layout.
@@ -245,9 +247,10 @@ class PopulateCouplingMapDictAndMatrixDict:
         self.coupling_map_dict = convert_list_map_to_dict(self.coupling_map)
 
     def create_entangle_matrix(self):
-        """Give an equal or subset of desired qubits denoted in self.init_layout, which should be limited by qubits
-        within the coupling map, generate a new dict of entangling qubits.  The entangling qubits
-        is equal or a subset of available qubits from the self.coupling map that are apart by self.qubit_distance.
+        """Give an equal or subset of desired qubits denoted in self.init_layout, which should be
+        limited by qubits within the coupling map, generate a new dict of entangling qubits.
+        The entangling qubits is equal or a subset of available qubits from the self.coupling map
+        that are apart by self.qubit_distance.
         """
 
         if self.the_diff:
@@ -286,16 +289,20 @@ class PopulateCouplingMapDictAndMatrixDict:
     def _matrix_to_get_entangle_dict(
         self,
     ) -> dict:
-        """Give an equal or subset of desired qubits denoted in self.init_layout, which should be limited by qubits
-        within the coupling map, generate a new dict of entangling qubits.  The entangling qubits
-        is equal or a subset of available qubits from the self.coupling map that are apart by self.qubit_distance.
+        """Give an equal or subset of desired qubits denoted in self.init_layout,
+        which should be limited by qubits within the coupling map,
+        generate a new dict of entangling qubits.  The entangling qubits
+        is equal or a subset of available qubits from the self.coupling map
+        that are apart by self.qubit_distance.
 
         Returns:
-            defaultdict(list): Contains only qubits which are desired from init_layout. The list has been sorted
-                by both the first and second qubits pairs. Then put desired qubits formatted within a matrix
-                and multiplied by self.qubit_distance times. The number in the matrix corresponds to how many
-                paths in the graphs connect the two qubits.  Within the result of matrix multiplication, use
-                the qubits with "1"  entry within the matrix, which is not on the diagonal.
+            defaultdict(list): Contains only qubits which are desired from init_layout.
+                The list has been sorted by both the first and second qubits pairs.
+                Then put desired qubits formatted within a matrix and multiplied
+                by self.qubit_distance times. The number in the matrix corresponds to how many
+                paths in the graphs connect the two qubits.
+                Within the result of matrix multiplication, use the qubits with "1"  entry
+                within the matrix, which is not on the diagonal.
 
         """
 
@@ -305,13 +312,15 @@ class PopulateCouplingMapDictAndMatrixDict:
         for index, qubit in enumerate(self.sorted_init_layout):
             self.initial_layout_lookup[qubit] = index
 
-        # For every connection between first and second qubits, fill the connections with value of 1.
+        # For every connection between first and second qubits,
+        # fill the connections with value of 1.
 
         # Sort just the keys of dict which represents the first_qubit of pair.
         for first_qubit, connection in sorted(self.coupling_map_dict.items()):
             # The value is a list of connections for second_qubit, so sort that separately.
             for second_qubit in sorted(connection):
-                # Rebuild the reduced list map for qubits that user denoted in self.sorted_init_layout.
+                # Rebuild the reduced list map for
+                # qubits that user denoted in self.sorted_init_layout.
                 if second_qubit in self.sorted_init_layout:
                     self.entangle_matrix[
                         self.initial_layout_lookup[first_qubit],
@@ -327,7 +336,8 @@ class PopulateCouplingMapDictAndMatrixDict:
         return entangling_dict
 
     def _build_intermediate_matrices(self):
-        """Keep a list of intermediate matrices since we need to use the intermediate matrices to check if coupling pair is spaced apart as desired."""
+        """Keep a list of intermediate matrices since we need to use the intermediate matrices
+        to check if coupling pair is spaced apart as desired."""
 
         # Index 0
         self.list_entangle_results.append(self.entangle_matrix)
@@ -356,11 +366,11 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             init_layout (list): Qubit_ids which are desired and a subset of available
                                 qubits from coupling map.
             distance (int, optional): How many qubits are guaranteed to be minimally between pairs.
-                                    This number is connected to the exponent of the adjacency matrix.
-                                    The exponent for matrix multiplication = distance+2.
-                                    Defaults to 0.
-                                    Zero means the pairs can be adjacent to each other.
-                                    One means there is minimum of 1 qubit between pairs, etc.
+                                This number is connected to the exponent of the adjacency matrix.
+                                The exponent for matrix multiplication = distance+2.
+                                Defaults to 0.
+                                Zero means the pairs can be adjacent to each other.
+                                One means there is minimum of 1 qubit between pairs, etc.
         """
         PopulateCouplingMapDictAndMatrixDict.__init__(
             self,
@@ -386,14 +396,17 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
 
     def pairs_from_n_and_reduced_coupling_map(self):
         """By using the reduced_coupling_map to look at qubit_distance within self.entangling_dict,
-        create list of layers.  Each layer is a grouping of tuples of qubit pairs. A grouping of layers is
-        made by starting with each qubit identified from the reduced_coupling_map.
+        create list of layers.  Each layer is a grouping of tuples of qubit pairs.
+        A grouping of layers is made by starting with each qubit identified from
+        the reduced_coupling_map.
 
         Returns:
 
-            defaultdict[defaultdict]]:  self.dict_of_layers_of_pairs gets populated now. The key is the qubit which is used
-                                        to start the search. There is a second key which denotes the unused pairs within the
-                                        search.
+            defaultdict[defaultdict]]:  self.dict_of_layers_of_pairs gets populated now.
+                                        The key is the qubit which is used
+                                        to start the search.
+                                        There is a second key which denotes the unused
+                                        pairs within the search.
             list[list(tuple)]: Each sublist are lists of pairs which are not repeated.
                                 Each sublist should be unique.
                                 Each sublist should have number of layers to be the minimum.
@@ -427,7 +440,7 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                         tally_used_pairs.extend(grouping_pair)
 
                         # Reset after each grouping.
-                        self.tally_used_qubits = list()
+                        self.tally_used_qubits = []
 
                         # Need to rebuild a further reduced_coupling_map by tally_used_pairs.
                         self.reduced_coupling_list_to_del = convert_dict_to_list(
@@ -459,7 +472,8 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
                     elif self.min_number_of_layers > len_of_listoflayersofpairs:
                         self.min_number_of_layers = len_of_listoflayersofpairs
                 else:
-                    a = 5  # For breakpoint
+                    pass
+                    # a = 5  # For breakpoint
 
             # Each set of layers should be at the minimum amount, or we don't want it.
             # Within self.combine_layers_populate() we remove any copies when determining
@@ -492,8 +506,9 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
             first_qubit (int): A qubit in a pair from the reduced_coupling_map.
             second_qubit (int): Another qubit in a pair from the reduced_coupling_map.
             grouping_pair (list): Holds a grouping of pairs for which are n away from each other.
-                                The pairs are sorted when entered into this link.  This is so we can
-                                compare with other sets that are created with different start qubits.
+                                The pairs are sorted when entered into this link.
+                                This is so we can compare with other sets that are
+                                created with different start qubits.
 
             Returns:
             list: List of Tuples which are a pair that are n away from each other.
@@ -587,7 +602,8 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         return grouping_pair
 
     def check_for_adjacent_qubits(self, grouping_pair: list, q1: int, q2: int) -> bool:
-        """This is a check when creating layers and self.qubit_distance > 2.  Since we are searching on all possible directions, we need to confirm we don't
+        """This is a check when creating layers and self.qubit_distance > 2.
+        Since we are searching on all possible directions, we need to confirm we don't
         select an adjacent qubit based on self.qubit_distance
 
         Args:
@@ -659,7 +675,9 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
     def combine_layers_populate(self):
         """Given a set of layers, one could combine the layers; like combining islands.
         Use self.unique_layers_of_pairs.  For each set, if possible, compress them.
-        Keep track of the size of sets and keep the smallest sized sets. Also, remove any duplicate sets."""
+        Keep track of the size of sets and keep the smallest sized sets.
+        Also, remove any duplicate sets.
+        """
 
         for set_layers in self.unique_layers_of_pairs:
             self.temp_sorted_by_len = sorted(set_layers, key=len, reverse=True)
@@ -694,8 +712,10 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         based on self.qubit_distance.
 
         Args:
-            check_index (int): If compressed, the size of set changes. Pass updated information to next recursive call.
-            length (int): If compressed, the size of set changes. Pass updated information to next recursive call.
+            check_index (int): If compressed, the size of set changes.
+                            Pass updated information to next recursive call.
+            length (int): If compressed, the size of set changes.
+                            Pass updated information to next recursive call.
         """
         for compare_index in reversed(range(check_index + 1)):
             last_qubits = set()
@@ -742,8 +762,10 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         restart the method again.
 
         Args:
-            check_index (int): If compressed, the size of set changes. Pass updated information to next recursive call.
-            length (int): If compressed, the size of set changes. Pass updated information to next recursive call.
+            check_index (int): If compressed, the size of set changes.
+                            Pass updated information to next recursive call.
+            length (int): If compressed, the size of set changes.
+                            Pass updated information to next recursive call.
         """
         for compare_index in reversed(range(check_index + 1)):
             for start_index in range(compare_index):
