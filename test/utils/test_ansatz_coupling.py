@@ -102,19 +102,19 @@ class TestEntanglingMap(unittest.TestCase):
         """Tie any loose ends after each test."""
         pass
 
-    def test_get_entangling_map_2(self, qubit_distance: int = 2):
+    def test_get_entangling_map_2(self, distance: int = 0):
         """Ensure code changes don't change basic output. This is just a sanity check.
 
         Args:
             qubit_distance (int, optional): Relates to desired distance between pairs.
-                        The value of 2 means pairs can be adjacent to each other or further apart.
-                        Defaults to 2.
+                        The value of 0 means pairs can be adjacent to each other or further apart.
+                        Defaults to 0.
         """
 
         new_layers = GetEntanglingMapFromInitLayout(
             self.the_coupling_map_list,
             self.the_initial_layout_set,
-            qubit_distance=qubit_distance,
+            distance=distance,
         )
         (
             dict_of_layers_of_pairs,
@@ -128,18 +128,18 @@ class TestEntanglingMap(unittest.TestCase):
         self.assertEqual(len(dict_of_layers_of_pairs), 18)
         self.assertListEqual(self.n2_combined_layers_min, combined_layers_min[15])
 
-    def test_get_entangling_map_3(self, qubit_distance: int = 3):
+    def test_get_entangling_map_3(self, distance: int = 1):
         """Ensure code changes don't change basic output. This is just a sanity check.
 
         Args:
             qubit_distance (int, optional): Relates to desired distance between pairs.
-                        The value of 3 means pairs can be 1 qubit, or further apart.
+                        The value of 1 means pairs can be 1 qubit, or greater apart.
         """
 
         new_layers = GetEntanglingMapFromInitLayout(
             self.the_coupling_map_list,
             self.the_initial_layout_set,
-            qubit_distance=qubit_distance,
+            distance=distance,
         )
         (
             dict_of_layers_of_pairs,
@@ -155,17 +155,17 @@ class TestEntanglingMap(unittest.TestCase):
         self.assertListEqual(self.n3_combined_layers_min, combined_layers_min[5])
 
     @unittest.expectedFailure
-    def test_bad_coupling_map(self, qubit_distance: int = 3):
+    def test_bad_coupling_map(self, distance: int = 1):
         """Have code to catch bad input data.
         This case will ask for qubit that is is not in the backend.
 
         Args:
-            qubit_distance (int, optional): _description_. Defaults to 3.
+            distance (int, optional): Desire qubit pairs to be 1 or greater distance apart.
         """
         new_layers = GetEntanglingMapFromInitLayout(
             self.the_coupling_map_list,
             self.the_initial_layout_set_wrong,
-            qubit_distance=qubit_distance,
+            distance=distance,
         )
 
 

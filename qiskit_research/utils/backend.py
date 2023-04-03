@@ -193,7 +193,7 @@ class PopulateCouplingMapDictAndMatrixDict:
             coupling_map (list): From provider's backend.
             init_layout (list): Qubit_ids which are desired and a subset of available
                                 qubits from coupling map.
-            qubit_distance (int, optional): Determines exponent for matrix multiplication. Defaults to 2.
+            qubit_distance (int, optional): Determines exponent for matrix multiplication of the adjacency matrix. Defaults to 2.
         """
         self.coupling_map = coupling_map
         # Used to determine self.the_diff
@@ -347,24 +347,31 @@ class PopulateCouplingMapDictAndMatrixDict:
 
 class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
     """Use the parent class to gather the data for sorting. Then this class will sort
-    according to desired Ansatz.
+    according to desired grouping for layers.
     """
 
-    def __init__(self, coupling_map: list, init_layout: list, qubit_distance: int = 2):
+    def __init__(self, coupling_map: list, init_layout: list, distance: int = 0):
         """Pass arguments to parent init and denote variable to hold result of sorting.
 
         Args:
             coupling_map (list): From provider's backend.
             init_layout (list): Qubit_ids which are desired and a subset of available
                                 qubits from coupling map.
-            qubit_distance (int, optional): Determines exponent for matrix multiplication. Defaults to 2.
+            distance (int, optional): How many qubits are guaranteed to be minimally between pairs.
+                                    This number is connected to the exponent of the adjacency matrix.
+                                    The exponent for matrix multiplication = distance+2.
+                                    Defaults to 0.
+                                    Zero means the pairs can be adjacent to each other.
+                                    One means there is minimum of 1 qubit between pairs, etc.
         """
         PopulateCouplingMapDictAndMatrixDict.__init__(
             self,
             coupling_map=coupling_map,
             init_layout=init_layout,
-            qubit_distance=qubit_distance,
+            # The distance+2 is used for the exponent for matrix multiplication.
+            qubit_distance=distance + 2,
         )
+        self.distance = distance
         self.dict_of_layers_of_pairs = defaultdict(lambda: defaultdict(list))
         self.unique_layers_of_pairs = []  # Will be a lists of lists which is sorted.
         # Will be list of lists with minimum number of layers.
