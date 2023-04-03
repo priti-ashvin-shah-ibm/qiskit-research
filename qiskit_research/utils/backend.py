@@ -12,19 +12,17 @@
 
 """Utilities for dealing with backends and their coupling maps."""
 import warnings
-from typing import Optional, Union, Tuple
-from copy import deepcopy
-from collections import defaultdict, OrderedDict
+from typing import Optional
+from collections import defaultdict
+from collections import deque
 from qiskit import BasicAer
 from qiskit.providers import Backend, Provider
-from qiskit_aer import AerSimulator
-import numpy as np
-from numpy.linalg import matrix_power
-from collections import deque
 
-# To plot the layers with a set for Ansatz.
+# To plot each layer for a grouping.
 from qiskit.visualization import plot_circuit_layout
 from qiskit import QuantumCircuit, transpile
+from qiskit_aer import AerSimulator
+import numpy as np
 
 
 def get_backend(

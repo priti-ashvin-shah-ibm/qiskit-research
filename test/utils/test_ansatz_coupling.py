@@ -12,31 +12,11 @@
 
 """Test Coupling Groups."""
 import unittest
-from qiskit import QuantumCircuit, transpile
-import copy
-from qiskit.tools import job_monitor
-from qiskit.visualization import (
-    plot_histogram,
-    plot_gate_map,
-    plot_circuit_layout,
-    plot_error_map,
-)
-
-from qiskit_research.utils import backend
-from qiskit import QuantumCircuit
-from qiskit.providers.fake_provider import FakeWashington, FakeWashingtonV2
+from qiskit.providers.fake_provider import FakeWashington
 from qiskit_research.utils import (
-    get_backend,
-    convert_list_map_to_dict,
-    convert_dict_to_list,
-    matrix_to_dict,
-    get_outward_coupling_map,
-    get_layered_ansatz_coupling_map,
     PopulateCouplingMapDictAndMatrixDict,
     GetEntanglingMapFromInitLayout,
 )
-
-from qiskit_ibm_provider import IBMProvider
 
 
 class TestEntanglingMap(unittest.TestCase):
