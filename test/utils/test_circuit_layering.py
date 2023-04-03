@@ -19,6 +19,7 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.circuit.library import PauliEvolutionGate
 from qiskit.opflow import PauliSumOp
 from qiskit.providers.fake_provider import FakeKolkata
+from qiskit.providers.fake_provider import FakeWashington
 from qiskit.transpiler import PassManager
 
 from qiskit_research.utils.circuit_layering import (
@@ -27,45 +28,9 @@ from qiskit_research.utils.circuit_layering import (
     LayerBlockOperators,
 )
 
-
-"""Test Coupling Groups."""
-import unittest
-from qiskit.providers.fake_provider import FakeWashington
 from qiskit_research.utils import (
-    PopulateCouplingMapDictAndMatrixDict,
     GetEntanglingMapFromInitLayout,
 )
-
-
-class TestLayeredPauliGates(unittest.TestCase):
-
-    num_qubits = 9
-    op = PauliSumOp.from_list(
-        [
-            ("I" * idx + pair + "I" * (9 - idx - 2), 1)
-            for idx in range(num_qubits - 2)
-            for pair in ["XX", "YY", "ZZ"]
-        ]
-    )
-    qc = QuantumCircuit(num_qubits)
-    qc.append(PauliEvolutionGate(op, 1), range(num_qubits))
-
-    block_ops = ["XX", "YY", "ZZ"]
-    qc_fbte = PassManager(FindBlockTrotterEvolution(block_ops=block_ops)).run(qc)
-
-    backend = FakeKolkata()
-    coupling_map = backend.configuration().coupling_map
-    qc_l = transpile(qc_fbte, coupling_map=coupling_map, seed_transpiler=12345)
-
-    qc_layered = PassManager(
-        [
-            LayerBlockOperators(block_ops=block_ops, coupling_map=coupling_map),
-            ExpandBlockOperators(block_ops=block_ops),
-        ]
-    ).run(qc_l)
-    import pdb
-
-    pdb.set_trace()
 
 
 class TestEntanglingMap(unittest.TestCase):
@@ -196,6 +161,37 @@ class TestEntanglingMap(unittest.TestCase):
             self.the_initial_layout_set_wrong,
             distance=distance,
         )
+
+
+class TestLayeredPauliGates(unittest.TestCase):
+
+    num_qubits = 9
+    op = PauliSumOp.from_list(
+        [
+            ("I" * idx + pair + "I" * (9 - idx - 2), 1)
+            for idx in range(num_qubits - 2)
+            for pair in ["XX", "YY", "ZZ"]
+        ]
+    )
+    qc = QuantumCircuit(num_qubits)
+    qc.append(PauliEvolutionGate(op, 1), range(num_qubits))
+
+    block_ops = ["XX", "YY", "ZZ"]
+    qc_fbte = PassManager(FindBlockTrotterEvolution(block_ops=block_ops)).run(qc)
+
+    backend = FakeKolkata()
+    coupling_map = backend.configuration().coupling_map
+    qc_l = transpile(qc_fbte, coupling_map=coupling_map, seed_transpiler=12345)
+
+    qc_layered = PassManager(
+        [
+            LayerBlockOperators(block_ops=block_ops, coupling_map=coupling_map),
+            ExpandBlockOperators(block_ops=block_ops),
+        ]
+    ).run(qc_l)
+    import pdb
+
+    pdb.set_trace()
 
 
 if __name__ == "__main__":
