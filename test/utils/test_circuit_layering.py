@@ -23,12 +23,13 @@ from qiskit.transpiler import PassManager
 
 from qiskit_research.utils.circuit_layering import ExpandBlockOperators, FindBlockTrotterEvolution, LayerBlockOperators
 
+# TODO: ceate data for different params & distances
 class TestLayeredPauliGates(unittest.TestCase):
     
     num_qubits = 9
     op = PauliSumOp.from_list([("I"*idx + pair + "I"*(9-idx-2), 1) for idx in range(num_qubits-2) for pair in ["XX", "YY", "ZZ"]])
     qc = QuantumCircuit(num_qubits)
-    qc.append(PauliEvolutionGate(op, 1), range(num_qubits))
+    qc.append(PauliEvolutionGate(op, 1.3), range(num_qubits))
 
     block_ops = ['XX','YY','ZZ']
     qc_fbte = PassManager(FindBlockTrotterEvolution(block_ops=block_ops)).run(qc)
@@ -38,7 +39,9 @@ class TestLayeredPauliGates(unittest.TestCase):
     qc_l = transpile(qc_fbte, coupling_map=coupling_map, seed_transpiler=12345)
 
     qc_layered = PassManager([
-        LayerBlockOperators(block_ops=block_ops, coupling_map=coupling_map),
+        LayerBlockOperators(block_ops=block_ops, coupling_map=coupling_map, qubit_distance=4),
         ExpandBlockOperators(block_ops=block_ops)
         ]).run(qc_l)
+    print(qc_l.draw(idle_wires=False))
+    print(qc_layered.draw(idle_wires=False))
     import pdb; pdb.set_trace()
