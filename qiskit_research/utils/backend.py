@@ -148,7 +148,7 @@ def convert_dict_to_list(coupling_map_dict: defaultdict) -> list:
 
 
 def matrix_to_dict(
-    entangled_result: "numpy.ndarray",
+    entangled_result: "np.ndarray",
     sorted_init_layout: list,
 ) -> dict:
     """Extract qubit ids for when the matrix is equal to 1 and formats the data
