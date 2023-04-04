@@ -163,6 +163,7 @@ class TestEntanglingMap(unittest.TestCase):
         )
 
 
+# TODO: ceate data for different params & distances
 class TestLayeredPauliGates(unittest.TestCase):
     """_summary_
 
@@ -179,7 +180,7 @@ class TestLayeredPauliGates(unittest.TestCase):
         ]
     )
     qc = QuantumCircuit(num_qubits)
-    qc.append(PauliEvolutionGate(op, 1), range(num_qubits))
+    qc.append(PauliEvolutionGate(op, 1.3), range(num_qubits))
 
     block_ops = ["XX", "YY", "ZZ"]
     qc_fbte = PassManager(FindBlockTrotterEvolution(block_ops=block_ops)).run(qc)

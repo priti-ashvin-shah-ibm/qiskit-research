@@ -18,6 +18,8 @@ from qiskit.transpiler import CouplingMap, TransformationPass
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 from qiskit.quantum_info import Pauli
 
+from qiskit_research.utils.backend import GetEntanglingMapFromInitLayout
+
 import numpy as np
 from typing import List, Tuple
 
@@ -87,11 +89,18 @@ class LayerBlockOperators(TransformationPass):
         self, 
         block_ops: List[str] = None,
         coupling_map: CouplingMap = None,
+        init_layout: List[List[int]] = None,
+        qubit_distance: int = 2,
     ):
         super().__init__()
         self._block_ops = block_ops
         self._block_str = "+".join(block_ops).lower()
         self._coupling_map = coupling_map
+        self._qubit_distance = qubit_distance
+        if init_layout is not None:
+            self._init_layout = init_layout
+        else:
+            self._init_layout = range(max(max(coupling_map)) - min(min(coupling_map)) + 1)
         self._ent_map = self._get_entanglement_map()
         
     def run(self, dag: DAGCircuit):
@@ -110,22 +119,11 @@ class LayerBlockOperators(TransformationPass):
     
     def _get_entanglement_map(self) -> List[List[int]]:
         
-        ent_map = [pair for pair in [pair for pair in self._coupling_map if pair[0] < pair[1]]]
-
-        # split entanglement map into sets of non-overlapping qubits
-        ent_maps = []
-        for pair in ent_map:
-            if ent_maps == []:
-                ent_maps.append([pair])
-            elif all([any([pair[0] in epair or pair[1] in epair for epair in emap]) for emap in ent_maps]):
-                ent_maps.append([pair])
-            else:
-                for emap in ent_maps:
-                    if all([pair[0] not in epair and pair[1] not in epair for epair in emap]):
-                        emap.append(pair)
-                        break
-        
-        return ent_maps
+        new_layers = GetEntanglingMapFromInitLayout(self._coupling_map, self._init_layout, qubit_distance=self._qubit_distance)
+        (_, _, _, ent_maps) = new_layers.pairs_from_n_and_reduced_coupling_map()
+        print(f'Layering: {ent_maps[0]}')
+        # TODO: return just ent_maps[0] for list of lists
+        return [[list(pair) for pair in layer] for layer in ent_maps[0]]
     
     @staticmethod
     def _get_pair_from_node(node):
@@ -157,7 +155,7 @@ class LayerBlockOperators(TransformationPass):
         lidx0 = self._get_layer_index(pair0, self._ent_map)
         pair1 = self._get_pair_from_node(node1)
         lidx1 = self._get_layer_index(pair1, self._ent_map)
-        
+        # import pdb; pdb.set_trace()
         if lidx0 < lidx1:
             return dag
         elif lidx1 < lidx0:
@@ -167,7 +165,7 @@ class LayerBlockOperators(TransformationPass):
 
             (q0, q1, q2) = self._get_ordered_qreg(pair0, pair1)
 
-            qargs = list(set(node0.qargs+node1.qargs)) # should share exactly one qubit
+            qargs = list(set(node0.qargs + node1.qargs)) # should share exactly one qubit
             qreg = qargs[0].register  
             
             mini_dag.apply_operation_back(node1.op, [qr[2], qr[1]])
@@ -201,11 +199,11 @@ class ExpandBlockOperators(TransformationPass):
 
         for oidx, op in enumerate(self._block_ops):
             if op == 'XX':
-                mini_dag.apply_operation_back(RXXGate(node.op.params[oidx]), [qr[0], qr[1]])
+                mini_dag.apply_operation_back(RXXGate(np.real(node.op.params[oidx])), [qr[0], qr[1]])
             elif op == 'YY':
-                mini_dag.apply_operation_back(RYYGate(node.op.params[oidx]), [qr[0], qr[1]])
+                mini_dag.apply_operation_back(RYYGate(np.real(node.op.params[oidx])), [qr[0], qr[1]])
             elif op == 'ZZ':
-                mini_dag.apply_operation_back(RZZGate(node.op.params[oidx]), [qr[0], qr[1]])
+                mini_dag.apply_operation_back(RZZGate(np.real(node.op.params[oidx])), [qr[0], qr[1]])
 
         dag.substitute_node_with_dag(node, mini_dag)
 
