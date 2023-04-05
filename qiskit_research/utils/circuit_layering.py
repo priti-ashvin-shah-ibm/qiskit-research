@@ -23,21 +23,22 @@ from qiskit_research.utils.backend import GetEntanglingMapFromInitLayout
 import numpy as np
 from typing import List, Tuple
 
+
 class FindBlockTrotterEvolution(TransformationPass):
     def __init__(
-        self, 
+        self,
         block_ops: List[str] = None,
     ):
         super().__init__()
         self._block_ops = block_ops
-    
+
     def run(self, dag: DAGCircuit):
-        for node in dag.op_nodes(): # let's take in PauliTrotterEvolutionGates to start
+        for node in dag.op_nodes():  # let's take in PauliTrotterEvolutionGates to start
             if isinstance(node.op, PauliEvolutionGate):
                 dag = self._decompose_to_block_ops(dag, node)
-    
+
         return dag
-                                
+
     def _decompose_to_block_ops(self, dag: DAGCircuit, node: DAGOpNode) -> DAGCircuit:
         """Decompose the PauliSumOp into two-qubit.
         Args:
@@ -47,23 +48,27 @@ class FindBlockTrotterEvolution(TransformationPass):
             A dag made of two-qubit :class:`.PauliEvolutionGate`.
         """
         sub_dag = dag.copy_empty_like()
-        required_paulis = {self._pauli_to_edge(pauli): {} for pauli in node.op.operator.paulis}
+        required_paulis = {
+            self._pauli_to_edge(pauli): {} for pauli in node.op.operator.paulis
+        }
         for pauli, coeff in zip(node.op.operator.paulis, node.op.operator.coeffs):
             required_paulis[self._pauli_to_edge(pauli)][pauli] = coeff
-        for edge, pauli_dict in required_paulis.items():         
+        for edge, pauli_dict in required_paulis.items():
             params = np.zeros(len(self._block_ops), dtype=object)
             for pauli, coeff in pauli_dict.items():
                 qubits = [dag.qubits[edge[0]], dag.qubits[edge[1]]]
                 for pidx, pstr in enumerate(self._block_ops):
                     if pauli.to_label().replace("I", "") == pstr:
                         params[pidx] = node.op.time * coeff
-            block_op = Instruction('xx+yy+zz', num_qubits=2, num_clbits=0, params=params)
+            block_op = Instruction(
+                "xx+yy+zz", num_qubits=2, num_clbits=0, params=params
+            )
             sub_dag.apply_operation_back(block_op, qubits)
-                
+
         dag.substitute_node_with_dag(node, sub_dag)
 
         return dag
-    
+
     @staticmethod
     def _pauli_to_edge(pauli: Pauli) -> Tuple[int, ...]:
         """Convert a pauli to an edge.
@@ -86,29 +91,31 @@ class FindBlockTrotterEvolution(TransformationPass):
 
 class LayerBlockOperators(TransformationPass):
     def __init__(
-        self, 
+        self,
         block_ops: List[str] = None,
         coupling_map: CouplingMap = None,
         init_layout: List[List[int]] = None,
-        qubit_distance: int = 2,
+        distance: int = 0,
     ):
         super().__init__()
         self._block_ops = block_ops
         self._block_str = "+".join(block_ops).lower()
         self._coupling_map = coupling_map
-        self._qubit_distance = qubit_distance
+        self._distance = distance
         if init_layout is not None:
             self._init_layout = init_layout
         else:
-            self._init_layout = range(max(max(coupling_map)) - min(min(coupling_map)) + 1)
+            self._init_layout = range(
+                max(max(coupling_map)) - min(min(coupling_map)) + 1
+            )
         self._ent_map = self._get_entanglement_map()
-        
+
     def run(self, dag: DAGCircuit):
         for front_node in dag.front_layer():
             self._find_consecutive_block_nodes(dag, front_node)
-            
+
         return dag
-    
+
     def _find_consecutive_block_nodes(self, dag, node0):
         for node1 in dag.successors(node0):
             if isinstance(node1, DAGOpNode):
@@ -116,15 +123,17 @@ class LayerBlockOperators(TransformationPass):
                 if node1.op.name == self._block_str:
                     if node0.op.name == self._block_str:
                         self._layer_block_op_nodes(dag, node0, node1)
-    
+
     def _get_entanglement_map(self) -> List[List[int]]:
-        
-        new_layers = GetEntanglingMapFromInitLayout(self._coupling_map, self._init_layout, qubit_distance=self._qubit_distance)
+        new_layers = GetEntanglingMapFromInitLayout(
+            self._coupling_map, self._init_layout, distance=self._distance
+        )
         (_, _, _, ent_maps) = new_layers.pairs_from_n_and_reduced_coupling_map()
-        print(f'Layering: {ent_maps[0]}')
+
+        print(f"Layering: {ent_maps[0]}")
         # TODO: return just ent_maps[0] for list of lists
         return [[list(pair) for pair in layer] for layer in ent_maps[0]]
-    
+
     @staticmethod
     def _get_pair_from_node(node):
         return [node.qargs[0].index, node.qargs[1].index]
@@ -149,7 +158,7 @@ class LayerBlockOperators(TransformationPass):
         else:
             q2 = pair1[0]
         return (q0, q1, q2)
-    
+
     def _layer_block_op_nodes(self, dag, node0, node1):
         pair0 = self._get_pair_from_node(node0)
         lidx0 = self._get_layer_index(pair0, self._ent_map)
@@ -160,25 +169,37 @@ class LayerBlockOperators(TransformationPass):
             return dag
         elif lidx1 < lidx0:
             mini_dag = DAGCircuit()
-            qr = QuantumRegister(3, 'q_{md}')
+            qr = QuantumRegister(3, "q_{md}")
             mini_dag.add_qreg(qr)
 
             (q0, q1, q2) = self._get_ordered_qreg(pair0, pair1)
 
-            qargs = list(set(node0.qargs + node1.qargs)) # should share exactly one qubit
-            qreg = qargs[0].register  
-            
+            qargs = list(
+                set(node0.qargs + node1.qargs)
+            )  # should share exactly one qubit
+            qreg = qargs[0].register
+
             mini_dag.apply_operation_back(node1.op, [qr[2], qr[1]])
             mini_dag.apply_operation_back(node0.op, [qr[0], qr[1]])
 
-            fake_op = Instruction("commutings blocks", num_qubits=3, num_clbits=0, params=[])
-            new_node = dag.replace_block_with_op([node0, node1], fake_op, wire_pos_map={qargs[0]: q0, qargs[1]: q1, qargs[2]: q2})
-            dag.substitute_node_with_dag(new_node, mini_dag, wires={qr[0]: qreg[q0], qr[1]: qreg[q1], qr[2]: qreg[q2]})
+            fake_op = Instruction(
+                "commutings blocks", num_qubits=3, num_clbits=0, params=[]
+            )
+            new_node = dag.replace_block_with_op(
+                [node0, node1],
+                fake_op,
+                wire_pos_map={qargs[0]: q0, qargs[1]: q1, qargs[2]: q2},
+            )
+            dag.substitute_node_with_dag(
+                new_node,
+                mini_dag,
+                wires={qr[0]: qreg[q0], qr[1]: qreg[q1], qr[2]: qreg[q2]},
+            )
 
 
 class ExpandBlockOperators(TransformationPass):
     def __init__(
-        self, 
+        self,
         block_ops: List[str] = None,
     ):
         super().__init__()
@@ -186,24 +207,30 @@ class ExpandBlockOperators(TransformationPass):
         self._block_str = "+".join(block_ops).lower()
 
     def run(self, dag: DAGCircuit):
-        for node in dag.op_nodes(): 
+        for node in dag.op_nodes():
             if node.op.name == self._block_str:
                 dag = self._expand_block_ops(dag, node)
-    
+
         return dag
-    
+
     def _expand_block_ops(self, dag, node):
         mini_dag = DAGCircuit()
         qr = QuantumRegister(2)
         mini_dag.add_qreg(qr)
 
         for oidx, op in enumerate(self._block_ops):
-            if op == 'XX':
-                mini_dag.apply_operation_back(RXXGate(np.real(node.op.params[oidx])), [qr[0], qr[1]])
-            elif op == 'YY':
-                mini_dag.apply_operation_back(RYYGate(np.real(node.op.params[oidx])), [qr[0], qr[1]])
-            elif op == 'ZZ':
-                mini_dag.apply_operation_back(RZZGate(np.real(node.op.params[oidx])), [qr[0], qr[1]])
+            if op == "XX":
+                mini_dag.apply_operation_back(
+                    RXXGate(np.real(node.op.params[oidx])), [qr[0], qr[1]]
+                )
+            elif op == "YY":
+                mini_dag.apply_operation_back(
+                    RYYGate(np.real(node.op.params[oidx])), [qr[0], qr[1]]
+                )
+            elif op == "ZZ":
+                mini_dag.apply_operation_back(
+                    RZZGate(np.real(node.op.params[oidx])), [qr[0], qr[1]]
+                )
 
         dag.substitute_node_with_dag(node, mini_dag)
 

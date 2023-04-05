@@ -19,7 +19,6 @@ Utilities for running research experiments with Qiskit
 from qiskit_research.utils.backend import (
     get_backend,
     convert_list_map_to_dict,
-
     convert_dict_to_list,
     matrix_to_dict,
     get_outward_coupling_map,
@@ -61,7 +60,6 @@ __all__ = [
     "PopulateCouplingMapDictAndMatrixDict",
     "GetEntanglingMapFromInitLayout",
     "PlotLayerData",
-
     "get_outward_coupling_map",
     "get_layered_ansatz_coupling_map",
     "add_pulse_calibrations",

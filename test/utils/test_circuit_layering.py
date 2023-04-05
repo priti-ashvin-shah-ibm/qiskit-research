@@ -21,6 +21,7 @@ from qiskit.circuit.library import PauliEvolutionGate
 from qiskit.opflow import PauliSumOp
 from qiskit.providers.fake_provider import FakeKolkata
 from qiskit.providers.fake_provider import FakeWashington
+from qiskit.quantum_info import Operator
 from qiskit.transpiler import PassManager
 
 from qiskit_research.utils.circuit_layering import (
@@ -171,32 +172,49 @@ class TestLayeredPauliGates(unittest.TestCase):
         unittest (_type_): For unit testing.
     """
 
-    num_qubits = 9
-    op = PauliSumOp.from_list(
-        [
-            ("I" * idx + pair + "I" * (9 - idx - 2), 1)
-            for idx in range(num_qubits - 2)
-            for pair in ["XX", "YY", "ZZ"]
-        ]
-    )
-    qc = QuantumCircuit(num_qubits)
-    qc.append(PauliEvolutionGate(op, 1.3), range(num_qubits))
+    def test_layered_pauli_evol_gate(self):
+        num_qubits = 7
+        op = PauliSumOp.from_list(
+            [
+                ("I" * idx + pair + "I" * (7 - idx - 2), 1)
+                for idx in range(num_qubits - 2)
+                for pair in ["XX", "YY", "ZZ"]
+            ]
+        )
+        qc = QuantumCircuit(num_qubits)
+        qc.append(PauliEvolutionGate(op, 1.3), range(num_qubits))
 
-    block_ops = ["XX", "YY", "ZZ"]
-    qc_fbte = PassManager(FindBlockTrotterEvolution(block_ops=block_ops)).run(qc)
+        block_ops = ["XX", "YY", "ZZ"]
+        qc_fbte = PassManager(FindBlockTrotterEvolution(block_ops=block_ops)).run(qc)
 
-    backend = FakeKolkata()
-    coupling_map = backend.configuration().coupling_map
-    qc_l = transpile(qc_fbte, coupling_map=coupling_map, seed_transpiler=12345)
+        backend = FakeKolkata()
+        coupling_map = backend.configuration().coupling_map
+        qc_l = transpile(qc_fbte, coupling_map=coupling_map, seed_transpiler=12345)
 
-    qc_layered = PassManager(
-        [
-            LayerBlockOperators(block_ops=block_ops, coupling_map=coupling_map),
-            ExpandBlockOperators(block_ops=block_ops),
-        ]
-    ).run(qc_l)
+        qc_layered = PassManager(
+            [
+                LayerBlockOperators(block_ops=block_ops, coupling_map=coupling_map),
+                ExpandBlockOperators(block_ops=block_ops),
+            ]
+        ).run(qc_l)
 
-    pdb.set_trace()
+        qc_unlayered = PassManager(ExpandBlockOperators(block_ops=block_ops)).run(qc_l)
+
+        # pdb.set_trace()
+        # qc_layered.draw(idle_wires=False)
+        self.assertLess(qc_layered.depth(), qc_unlayered.depth())
+
+    def test_barrier_pauli_evol_gate(self):
+        op = PauliSumOp.from_list([[pair, 1] for pair in ["XX", "YY", "ZZ"]])
+        layers = [[[0, 1], [4, 5]], [[2, 3], [6, 7]], [[1, 2], [5, 6]], [[3, 4]]]
+        qc = QuantumCircuit(8)
+
+        for layer in layers:
+            [qc.append(PauliEvolutionGate(op, 0.7), pair) for pair in layer]
+            qc.barrier()
+
+        # pdb.set_trace()
+        # qc.draw()
 
 
 if __name__ == "__main__":
