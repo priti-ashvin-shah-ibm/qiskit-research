@@ -658,7 +658,6 @@ class GetEntanglingMapFromInitLayout(PopulateCouplingMapDictAndMatrixDict):
         # Check every matrix that for spacing.
         #  If too close, they can not be combined.
         for index in range(self.qubit_distance - 2):
-
             for start_qubit in start_with_qubits:
                 for last_qubit in last_qubits:
                     if (
